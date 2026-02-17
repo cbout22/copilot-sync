@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"cops/internal/config"
-	"cops/internal/manifest"
+	"github.com/cbout22/copilot-sync/internal/config"
+	"github.com/cbout22/copilot-sync/internal/manifest"
 )
 
 // newUnuseCmd creates the `unuse` subcommand for a given asset type.

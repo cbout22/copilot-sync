@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"cops/internal/config"
+	"github.com/cbout22/copilot-sync/internal/config"
 )
 
 const githubAPIBase = "https://api.github.com"

@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"cops/internal/config"
-	"cops/internal/manifest"
-	"cops/internal/resolver"
+	"github.com/cbout22/copilot-sync/internal/config"
+	"github.com/cbout22/copilot-sync/internal/manifest"
+	"github.com/cbout22/copilot-sync/internal/resolver"
 )
 
 // Injector downloads assets from GitHub and writes them to the correct

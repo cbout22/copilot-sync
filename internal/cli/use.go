@@ -5,11 +5,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"cops/internal/auth"
-	"cops/internal/config"
-	"cops/internal/injector"
-	"cops/internal/manifest"
-	"cops/internal/resolver"
+	"github.com/cbout22/copilot-sync/internal/auth"
+	"github.com/cbout22/copilot-sync/internal/config"
+	"github.com/cbout22/copilot-sync/internal/injector"
+	"github.com/cbout22/copilot-sync/internal/manifest"
+	"github.com/cbout22/copilot-sync/internal/resolver"
 )
 
 // newUseCmd creates the `use` subcommand for a given asset type.
