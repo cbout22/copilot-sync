@@ -1,7 +1,7 @@
 package main
 
 import (
-	"cops/internal/cli"
+	"github.com/cbout22/copilot-sync/internal/cli"
 )
 
 func main() {

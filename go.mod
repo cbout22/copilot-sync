@@ -1,4 +1,4 @@
-module cops
+module github.com/cbout22/copilot-sync
 
 go 1.25.6
 

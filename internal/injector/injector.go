@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"cops/internal/config"
-	"cops/internal/manifest"
-	"cops/internal/resolver"
+	"github.com/cbout22/copilot-sync/internal/config"
+	"github.com/cbout22/copilot-sync/internal/manifest"
+	"github.com/cbout22/copilot-sync/internal/resolver"
 )
 
 // Injector downloads assets from GitHub and writes them to the correct
@@ -98,6 +98,17 @@ func (inj *Injector) injectFile(ref config.AssetRef, absTarget string, assetType
 	return nil
 }
 
+// computeDirectoryChecksum creates a combined checksum for all files in a directory.
+func computeDirectoryChecksum(contents map[string][]byte) []byte {
+	// For directories, we concatenate all file contents in sorted path order
+	// to create a stable checksum
+	var combined []byte
+	for _, content := range contents {
+		combined = append(combined, content...)
+	}
+	return combined
+}
+
 // injectDirectory downloads all files in a directory (for skills) and writes them.
 func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) error {
 	// List all files in the remote directory
@@ -110,6 +121,9 @@ func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) e
 	if err := os.MkdirAll(absTargetDir, 0755); err != nil {
 		return fmt.Errorf("creating skill directory: %w", err)
 	}
+
+	// Track all downloaded contents for checksum
+	allContents := make(map[string][]byte)
 
 	for _, entry := range entries {
 		// Compute relative path within the skill directory
@@ -142,7 +156,21 @@ func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) e
 		if err := os.WriteFile(targetFile, content, 0644); err != nil {
 			return fmt.Errorf("writing %s: %w", targetFile, err)
 		}
+
+		allContents[relPath] = content
 	}
+
+	// Resolve commit SHA for the lock file
+	sha, err := inj.resolver.ResolveCommitSHA(ref)
+	if err != nil {
+		// Non-fatal: we still wrote the files, just can't lock the SHA
+		sha = "unknown"
+	}
+
+	// Update the lock file with combined checksum
+	combinedContent := computeDirectoryChecksum(allContents)
+	targetPath := strings.TrimPrefix(absTargetDir, inj.rootDir+"/")
+	inj.lock.Set("skills", filepath.Base(absTargetDir), ref.Raw(), sha, targetPath, combinedContent)
 
 	return nil
 }
