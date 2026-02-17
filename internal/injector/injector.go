@@ -1,0 +1,148 @@
+package injector
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"cops/internal/config"
+	"cops/internal/manifest"
+	"cops/internal/resolver"
+)
+
+// Injector downloads assets from GitHub and writes them to the correct
+// .github/<type>/ directory.
+type Injector struct {
+	resolver *resolver.Resolver
+	lock     *manifest.LockFile
+	rootDir  string // project root directory
+}
+
+// New creates an Injector.
+func New(res *resolver.Resolver, lock *manifest.LockFile, rootDir string) *Injector {
+	return &Injector{
+		resolver: res,
+		lock:     lock,
+		rootDir:  rootDir,
+	}
+}
+
+// InjectResult holds the outcome of injecting a single asset.
+type InjectResult struct {
+	Type       string
+	Name       string
+	Ref        string
+	TargetPath string
+	SHA        string
+	Err        error
+}
+
+// Inject downloads and writes a single asset.
+func (inj *Injector) Inject(assetType config.AssetType, name, rawRef string) InjectResult {
+	result := InjectResult{
+		Type: string(assetType),
+		Name: name,
+		Ref:  rawRef,
+	}
+
+	// Parse the reference
+	ref, err := config.ParseRef(rawRef)
+	if err != nil {
+		result.Err = err
+		return result
+	}
+
+	targetPath := assetType.TargetPath(name)
+	result.TargetPath = targetPath
+	absTarget := filepath.Join(inj.rootDir, targetPath)
+
+	if assetType.IsDirectory() {
+		err = inj.injectDirectory(ref, absTarget)
+	} else {
+		err = inj.injectFile(ref, absTarget, assetType, name, rawRef)
+	}
+
+	result.Err = err
+	return result
+}
+
+// injectFile downloads a single file asset and writes it to disk.
+func (inj *Injector) injectFile(ref config.AssetRef, absTarget string, assetType config.AssetType, name, rawRef string) error {
+	// Ensure target directory exists
+	if err := os.MkdirAll(filepath.Dir(absTarget), 0755); err != nil {
+		return fmt.Errorf("creating directory: %w", err)
+	}
+
+	// Download the file
+	content, err := inj.resolver.DownloadFile(ref)
+	if err != nil {
+		return err
+	}
+
+	// Write to disk
+	if err := os.WriteFile(absTarget, content, 0644); err != nil {
+		return fmt.Errorf("writing file %s: %w", absTarget, err)
+	}
+
+	// Resolve commit SHA for the lock file
+	sha, err := inj.resolver.ResolveCommitSHA(ref)
+	if err != nil {
+		// Non-fatal: we still wrote the file, just can't lock the SHA
+		sha = "unknown"
+	}
+
+	// Update the lock file
+	inj.lock.Set(string(assetType), name, rawRef, sha, assetType.TargetPath(name), content)
+
+	return nil
+}
+
+// injectDirectory downloads all files in a directory (for skills) and writes them.
+func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) error {
+	// List all files in the remote directory
+	entries, err := inj.resolver.ListDirectory(ref)
+	if err != nil {
+		return err
+	}
+
+	// Ensure base target directory exists
+	if err := os.MkdirAll(absTargetDir, 0755); err != nil {
+		return fmt.Errorf("creating skill directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		// Compute relative path within the skill directory
+		relPath := strings.TrimPrefix(entry.Path, ref.Path+"/")
+		if relPath == entry.Path {
+			// It's the directory entry itself, use the filename
+			relPath = filepath.Base(entry.Path)
+		}
+
+		targetFile := filepath.Join(absTargetDir, relPath)
+
+		// Ensure subdirectories exist
+		if err := os.MkdirAll(filepath.Dir(targetFile), 0755); err != nil {
+			return fmt.Errorf("creating directory for %s: %w", relPath, err)
+		}
+
+		// Download each file using raw URL
+		fileRef := config.AssetRef{
+			Org:  ref.Org,
+			Repo: ref.Repo,
+			Path: entry.Path,
+			Ref:  ref.Ref,
+		}
+
+		content, err := inj.resolver.DownloadFile(fileRef)
+		if err != nil {
+			return fmt.Errorf("downloading %s: %w", entry.Path, err)
+		}
+
+		if err := os.WriteFile(targetFile, content, 0644); err != nil {
+			return fmt.Errorf("writing %s: %w", targetFile, err)
+		}
+	}
+
+	return nil
+}
