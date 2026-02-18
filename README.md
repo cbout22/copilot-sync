@@ -39,7 +39,29 @@ Share not only `skills` but also `instructions`, `prompts`, and `agents` — the
 
 ## 📦 Installation
 
-### From source
+### Homebrew (macOS)
+
+```bash
+brew install --cask --no-quarantine cbout22/tap/cops
+```
+
+### APT / Debian
+
+Download the `.deb` package from the [latest release](https://github.com/cbout22/copilot-sync/releases/latest) and install it:
+
+```bash
+curl -LO https://github.com/cbout22/copilot-sync/releases/latest/download/cops_<version>_linux_amd64.deb
+sudo dpkg -i cops_<version>_linux_amd64.deb
+```
+
+### Scoop (Windows)
+
+```powershell
+scoop bucket add cops https://github.com/cbout22/scoop-bucket
+scoop install cops
+```
+
+### From source (Go)
 
 ```bash
 go install github.com/cbout22/copilot-sync/cmd/cops@latest
@@ -50,7 +72,7 @@ go install github.com/cbout22/copilot-sync/cmd/cops@latest
 ```bash
 git clone https://github.com/cbout22/copilot-sync.git
 cd copilot-sync
-go build -ldflags "-X cops/internal/cli.buildVersion=$(git describe --tags --always)" -o cops ./cmd/cops/
+go build -ldflags "-X github.com/cbout22/copilot-sync/internal/cli.version=$(git describe --tags --always)" -o cops ./cmd/cops/
 ```
 
 The resulting `cops` binary can be placed anywhere on your `$PATH`.
