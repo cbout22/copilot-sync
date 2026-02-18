@@ -1,0 +1,88 @@
+version: 2
+
+project_name: cops
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: cops
+    main: ./cmd/cops/
+    binary: cops
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/cbout22/copilot-sync/internal/cli.version={{.Version}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: default
+    formats: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+# ── Homebrew ──────────────────────────────────────────────
+homebrew_casks:
+  - repository:
+      owner: cbout22
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/cbout22/copilot-sync"
+    description: "The deterministic package manager for your GitHub Copilot agent files"
+    license: "MIT"
+    binaries:
+      - cops
+
+# ── APT / Debian + RPM ───────────────────────────────────
+nfpms:
+  - id: deb
+    package_name: cops
+    vendor: cbout22
+    homepage: "https://github.com/cbout22/copilot-sync"
+    maintainer: "cbout22 <cbout22@users.noreply.github.com>"
+    description: "The deterministic package manager for your GitHub Copilot agent files"
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+
+# ── Windows (Scoop) ──────────────────────────────────────
+scoops:
+  - repository:
+      owner: cbout22
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+    homepage: "https://github.com/cbout22/copilot-sync"
+    description: "The deterministic package manager for your GitHub Copilot agent files"
+    license: MIT
+
+release:
+  github:
+    owner: cbout22
+    name: copilot-sync
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
