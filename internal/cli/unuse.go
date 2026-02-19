@@ -22,6 +22,9 @@ corresponding local file or directory from disk.
 Example:
   cops %s unuse my-asset`, typeName, typeName),
 		Args: cobra.ExactArgs(1),
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			return resolveManifestName(typeName, toComplete)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			return runUnuse(typeName, name)

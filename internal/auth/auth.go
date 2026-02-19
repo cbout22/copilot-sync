@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 )
 
 // githubTokenEnvVars lists the environment variables checked for a GitHub token,
@@ -32,15 +33,22 @@ func Token() (string, error) {
 // Otherwise it returns a plain client (sufficient for public repos, but
 // subject to stricter rate limits).
 func NewHTTPClient() (*http.Client, error) {
+	return NewHTTPClientWithTimeout(0)
+}
+
+// NewHTTPClientWithTimeout returns an *http.Client with a specific timeout.
+func NewHTTPClientWithTimeout(timeout time.Duration) (*http.Client, error) {
 	token, err := Token()
 	if err != nil {
 		// No token — return a plain client for public repo access
 		fmt.Fprintf(os.Stderr, "⚠️  No GitHub token found — using unauthenticated requests (rate-limited).\n")
 		fmt.Fprintf(os.Stderr, "   Set GITHUB_TOKEN or GH_TOKEN for private repos and higher rate limits.\n")
-		return http.DefaultClient, nil
+		client := &http.Client{Timeout: timeout}
+		return client, nil
 	}
 
 	return &http.Client{
+		Timeout: timeout,
 		Transport: &tokenTransport{
 			token: token,
 			base:  http.DefaultTransport,
