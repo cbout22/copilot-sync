@@ -23,6 +23,12 @@ func newUseCmd(typeName string) *cobra.Command {
 Example:
   cops %s use my-asset my-org/repo/path/to/file@v1.0`, typeName, typeName),
 		Args: cobra.ExactArgs(2),
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) == 1 {
+				return resolveGitHubCompletions(toComplete)
+			}
+			return nil, cobra.ShellCompDirectiveDefault
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			rawRef := args[1]

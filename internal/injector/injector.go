@@ -74,22 +74,28 @@ func (inj *Injector) injectFile(ref config.AssetRef, absTarget string, assetType
 		return fmt.Errorf("creating directory: %w", err)
 	}
 
+	// Resolve commit SHA for the lock file
+	sha, err := inj.resolver.ResolveCommitSHA(ref)
+	if err != nil {
+		return fmt.Errorf("resolving commit SHA: %w", err)
+	}
+
 	// Download the file
 	content, err := inj.resolver.DownloadFile(ref)
 	if err != nil {
 		return err
 	}
 
+	// Remove existing file if it exists to avoid stale content
+	if _, err := os.Stat(absTarget); err == nil {
+		if err := os.Remove(absTarget); err != nil {
+			return fmt.Errorf("removing existing file: %w", err)
+		}
+	}
+
 	// Write to disk
 	if err := os.WriteFile(absTarget, content, 0644); err != nil {
 		return fmt.Errorf("writing file %s: %w", absTarget, err)
-	}
-
-	// Resolve commit SHA for the lock file
-	sha, err := inj.resolver.ResolveCommitSHA(ref)
-	if err != nil {
-		// Non-fatal: we still wrote the file, just can't lock the SHA
-		sha = "unknown"
 	}
 
 	// Update the lock file
