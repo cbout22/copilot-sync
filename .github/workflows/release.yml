@@ -17,10 +17,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: GPG import
+        uses: crazy-max/ghaction-import-gpg@v4
         with:
-          go-version-file: go.mod
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          gpg_fingerprint: ${{ secrets.GPG_FINGERPRINT }}
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
