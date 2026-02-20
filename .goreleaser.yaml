@@ -6,6 +6,23 @@ before:
   hooks:
     - go mod tidy
 
+# ──────────────────────────────────────────────────────────────
+# Enabling binary signing with an empty configuration to trigger the default behavior of signing all binaries.
+# ──────────────────────────────────────────────────────────────
+binary_signs:
+  - args:
+      - "--batch"
+      - "--pinentry-mode"
+      - "loopback"
+      - "--passphrase"
+      - "{{ .Env.GPG_PASSPHRASE }}"
+      - "-u"
+      - "{{ .Env.GPG_FINGERPRINT }}"
+      - "--detach-sign"
+      - "--output"
+      - "${signature}"
+      - "${artifact}"
+
 builds:
   - id: cops
     main: ./cmd/cops/
@@ -54,6 +71,12 @@ homebrew_casks:
     license: "MIT"
     binaries:
       - cops
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/cops"]
+          end
 
 # ── APT / Debian + RPM ───────────────────────────────────
 nfpms:

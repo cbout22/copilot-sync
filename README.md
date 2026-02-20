@@ -42,7 +42,7 @@ Share not only `skills` but also `instructions`, `prompts`, and `agents` — the
 ### Homebrew (macOS)
 
 ```bash
-brew install --cask --no-quarantine cbout22/tap/cops
+brew install --cask cbout22/tap/cops
 ```
 
 ### APT / Debian
