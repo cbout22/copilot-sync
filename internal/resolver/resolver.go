@@ -23,39 +23,46 @@ func New(client *http.Client) *Resolver {
 	return &Resolver{client: client}
 }
 
-// ResolveRef resolves special ref aliases. If the ref is "latest", it queries
-// the GitHub API for the repository's default branch and returns a new AssetRef
-// with that branch as the ref. Otherwise returns the ref unchanged.
-func (r *Resolver) ResolveRef(ref config.AssetRef) (config.AssetRef, error) {
-	if ref.Ref != "latest" {
-		return ref, nil
-	}
-
+func (r *Resolver) ResolveDefaultBranchName(ref config.AssetRef) (string, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s", githubAPIBase, ref.Org, ref.Repo)
 	resp, err := r.client.Get(url)
 	if err != nil {
-		return ref, fmt.Errorf("fetching repo info for %s: %w", ref.RepoFullName(), err)
+		return "", fmt.Errorf("fetching repo info for %s: %w", ref.RepoFullName(), err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return ref, fmt.Errorf("fetching repo info for %s: HTTP %d — %s", ref.RepoFullName(), resp.StatusCode, string(body))
+		return "", fmt.Errorf("fetching repo info for %s: HTTP %d — %s", ref.RepoFullName(), resp.StatusCode, string(body))
 	}
 
 	var repoInfo struct {
 		DefaultBranch string `json:"default_branch"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&repoInfo); err != nil {
-		return ref, fmt.Errorf("decoding repo info: %w", err)
+		return "", fmt.Errorf("decoding repo info: %w", err)
 	}
 
 	if repoInfo.DefaultBranch == "" {
-		return ref, fmt.Errorf("could not determine default branch for %s", ref.RepoFullName())
+		return "", fmt.Errorf("could not determine default branch for %s", ref.RepoFullName())
 	}
 
-	ref.Ref = repoInfo.DefaultBranch
-	return ref, nil
+	return repoInfo.DefaultBranch, nil
+}
+
+// ResolveRef resolves special ref aliases. If the ref is "latest", it queries
+// the GitHub API for the repository's default branch and returns a new AssetRef
+// with that branch as the ref. Otherwise returns the ref unchanged.
+func (r *Resolver) ResolveRef(assetReference config.AssetRef) (config.AssetRef, error) {
+	if assetReference.Ref == "latest" {
+		defaultBranch, err := r.ResolveDefaultBranchName(assetReference)
+		if err != nil {
+			return assetReference, err
+		}
+		assetReference.Ref = defaultBranch
+		return assetReference, nil
+	}
+	return assetReference, nil
 }
 
 // RawFileURL builds the raw.githubusercontent.com URL for a single file.
@@ -172,23 +179,20 @@ func (r *Resolver) ListDirectory(ref config.AssetRef) ([]GitHubTreeEntry, error)
 	return entries, nil
 }
 
-// ResolveCommitSHA resolves the given ref (branch, tag, or SHA) to a commit SHA.
-func (r *Resolver) ResolveCommitSHA(ref config.AssetRef) (string, error) {
+// ResolveSHA resolves the given ref (branch, tag, or SHA) to a commit SHA.
+func (r *Resolver) ResolveSHA(ref config.AssetRef) (string, error) {
 	// Resolve @latest to the default branch
 	ref, err := r.ResolveRef(ref)
 	if err != nil {
 		return "", err
 	}
 
-	url := fmt.Sprintf("%s/repos/%s/%s/commits/%s",
-		githubAPIBase, ref.Org, ref.Repo, ref.Ref)
+	url := fmt.Sprintf("%s/repos/%s/%s/commits/%s", githubAPIBase, ref.Org, ref.Repo, ref.Ref)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
 	}
-	// Only fetch the SHA, not the full commit
-	req.Header.Set("Accept", "application/vnd.github.v3.sha")
 
 	resp, err := r.client.Do(req)
 	if err != nil {
@@ -201,10 +205,12 @@ func (r *Resolver) ResolveCommitSHA(ref config.AssetRef) (string, error) {
 		return "", fmt.Errorf("resolving commit SHA: HTTP %d — %s", resp.StatusCode, string(body))
 	}
 
-	sha, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("reading commit SHA: %w", err)
+	var shaInfo struct {
+		SHA string `json:"sha"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&shaInfo); err != nil {
+		return "", fmt.Errorf("decoding commit SHA response: %w", err)
 	}
 
-	return string(sha), nil
+	return shaInfo.SHA, nil
 }

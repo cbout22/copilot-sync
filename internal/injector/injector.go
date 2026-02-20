@@ -75,7 +75,7 @@ func (inj *Injector) injectFile(ref config.AssetRef, absTarget string, assetType
 	}
 
 	// Resolve commit SHA for the lock file
-	sha, err := inj.resolver.ResolveCommitSHA(ref)
+	sha, err := inj.resolver.ResolveSHA(ref)
 	if err != nil {
 		return fmt.Errorf("resolving commit SHA: %w", err)
 	}
@@ -167,7 +167,7 @@ func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) e
 	}
 
 	// Resolve commit SHA for the lock file
-	sha, err := inj.resolver.ResolveCommitSHA(ref)
+	sha, err := inj.resolver.ResolveSHA(ref)
 	if err != nil {
 		// Non-fatal: we still wrote the files, just can't lock the SHA
 		sha = "unknown"
