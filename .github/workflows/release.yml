@@ -17,12 +17,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: GPG import
+      - 
+        id: import_gpg
         uses: crazy-max/ghaction-import-gpg@v4
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          gpg_fingerprint: ${{ secrets.GPG_FINGERPRINT }}
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
@@ -33,3 +33,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.gpg_fingerprint }}

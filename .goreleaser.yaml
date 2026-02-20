@@ -10,7 +10,19 @@ before:
 # Enabling binary signing with an empty configuration to trigger the default behavior of signing all binaries.
 # ──────────────────────────────────────────────────────────────
 binary_signs:
-  - {}
+  - artifacts: all
+    args:
+      - "--batch"
+      - "--pinentry-mode"
+      - "loopback"
+      - "--passphrase"
+      - "{{ .Env.GPG_PASSPHRASE }}"
+      - "-u"
+      - "{{ .Env.GPG_FINGERPRINT }}"
+      - "--detach-sign"
+      - "--output"
+      - "${signature}"
+      - "${artifact}"
 
 builds:
   - id: cops
