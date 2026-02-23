@@ -87,39 +87,36 @@ cops --version
 
 ## 🚀 Quick Start
 
-**1. Create a `copilot.toml` in your project root:**
+**1. open any github repository**
 
-```toml
-[agents]
-reviewer = "my-org/copilot-agents/personas/senior-reviewer.md@main"
+**2. fetch a remote file from github/awesome-copilot-agents**
+```bash
+$ cops instructions use reviews github/awesome-copilot/instructions/code-review-generic.instructions.md@latest 
+📦 Adding instructions/reviews from github/awesome-copilot/instructions/code-review-generic.instructions.md@latest...
+✅ instructions/reviews synced to .github/instructions/reviews.instructions.md
+```
 
+**3. That's it. Your Copilot agent files are now version-controlled and reproducible.**
+
+Your `copilot.toml` manifest now contains the new entry:
+```bash
+✗ cat copilot.toml 
 [instructions]
-clean-code = "my-org/standards/practices/ddd/clean-code.md@v1.2"
+  reviews = "github/awesome-copilot/instructions/code-review-generic.instructions.md@latest"
 ```
-
-**2. Sync all assets:**
-
+And your lock file is updated:
 ```bash
-cops sync
+✗ cat .cops.lock 
+{
+  "version": 1,
+  "entries": {
+    "instructions/reviews": {
+      [...]
+    }
+  }
+}
 ```
 
-`cops` downloads each file to the appropriate `.github/<type>/` directory.
-
-**3. Sync all assets:**
-
-```bash
-cops update
-```
-
-`cops` updates agents files to the latest version.
-
-**4. Check everything is in sync:**
-
-```bash
-cops check
-```
-
-That's it. Your Copilot agent files are now version-controlled and reproducible.
 
 ---
 
