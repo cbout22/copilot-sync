@@ -2,11 +2,10 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
-	"github.com/cbout22/copilot-sync/internal/config"
+	"github.com/cbout22/copilot-sync/internal/injector"
 	"github.com/cbout22/copilot-sync/internal/manifest"
 )
 
@@ -35,7 +34,6 @@ missing or stale.`,
 }
 
 func runCheck(strict bool) error {
-	// Load the manifest
 	m, err := manifest.Load(manifest.DefaultManifestFile)
 	if err != nil {
 		return fmt.Errorf("loading manifest: %w", err)
@@ -47,47 +45,37 @@ func runCheck(strict bool) error {
 		return nil
 	}
 
-	// Load the lock file
 	lock, err := manifest.LoadLock(manifest.DefaultLockFile)
 	if err != nil {
 		return fmt.Errorf("loading lock file: %w", err)
 	}
 
-	fmt.Printf("🔍 Checking %d asset(s)...\n\n", len(entries))
+	fs := &injector.OSFileWriter{}
+	results := CheckAssets(entries, lock, fs)
+
+	fmt.Printf("🔍 Checking %d asset(s)...\n\n", len(results))
 
 	var issues int
-
-	for _, entry := range entries {
-		assetType := config.AssetType(entry.Type)
-		targetPath := assetType.TargetPath(entry.Name)
-
-		// Check if file exists on disk
-		_, statErr := os.Stat(targetPath)
-		fileExists := statErr == nil
-
-		// Check lock file
-		lockEntry, locked := lock.Get(entry.Type, entry.Name)
-
-		switch {
-		case !fileExists && !locked:
-			fmt.Printf("  ❌ %s/%s — missing (never synced)\n", entry.Type, entry.Name)
+	for _, r := range results {
+		switch r.Status {
+		case CheckOK:
+			fmt.Printf("  ✅ %s/%s — ok\n", r.Type, r.Name)
+		case CheckNeverSynced:
+			fmt.Printf("  ❌ %s/%s — missing (never synced)\n", r.Type, r.Name)
 			issues++
-		case !fileExists && locked:
-			fmt.Printf("  ❌ %s/%s — missing (was synced at %s)\n", entry.Type, entry.Name, lockEntry.SyncedAt)
+		case CheckFileMissing:
+			fmt.Printf("  ❌ %s/%s — missing (was synced)\n", r.Type, r.Name)
 			issues++
-		case fileExists && !locked:
-			fmt.Printf("  ⚠️  %s/%s — file exists but not in lock file (run 'cops sync')\n", entry.Type, entry.Name)
+		case CheckNotInLock:
+			fmt.Printf("  ⚠️  %s/%s — file exists but not in lock file (run 'cops sync')\n", r.Type, r.Name)
 			issues++
-		case fileExists && locked && lockEntry.Ref != entry.Ref:
-			fmt.Printf("  ⚠️  %s/%s — ref changed: lock=%s manifest=%s\n", entry.Type, entry.Name, lockEntry.Ref, entry.Ref)
+		case CheckRefMismatch:
+			fmt.Printf("  ⚠️  %s/%s — ref changed: lock=%s manifest=%s\n", r.Type, r.Name, r.LockRef, r.ManifRef)
 			issues++
-		default:
-			fmt.Printf("  ✅ %s/%s — ok\n", entry.Type, entry.Name)
 		}
 	}
 
 	fmt.Println()
-
 	if issues > 0 {
 		msg := fmt.Sprintf("Found %d issue(s). Run 'cops sync' to fix.", issues)
 		if strict {
@@ -97,6 +85,5 @@ func runCheck(strict bool) error {
 	} else {
 		fmt.Println("✅ All assets are in sync.")
 	}
-
 	return nil
 }
