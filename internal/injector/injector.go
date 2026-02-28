@@ -15,17 +15,17 @@ import (
 // Injector downloads assets from GitHub and writes them to the correct
 // .github/<type>/ directory.
 type Injector struct {
-	resolver *resolver.Resolver
-	lock     *manifest.LockFile
-	rootDir  string // project root directory
+	source  resolver.SourceRepository
+	lock    *manifest.LockFile
+	rootDir string // project root directory
 }
 
 // New creates an Injector.
-func New(res *resolver.Resolver, lock *manifest.LockFile, rootDir string) *Injector {
+func New(source resolver.SourceRepository, lock *manifest.LockFile, rootDir string) *Injector {
 	return &Injector{
-		resolver: res,
-		lock:     lock,
-		rootDir:  rootDir,
+		source:  source,
+		lock:    lock,
+		rootDir: rootDir,
 	}
 }
 
@@ -76,13 +76,13 @@ func (inj *Injector) injectFile(ref config.AssetRef, absTarget string, assetType
 	}
 
 	// Resolve commit SHA for the lock file
-	sha, err := inj.resolver.ResolveSHA(ref)
+	sha, err := inj.source.ResolveSHA(ref)
 	if err != nil {
 		return fmt.Errorf("resolving commit SHA: %w", err)
 	}
 
 	// Download the file
-	content, err := inj.resolver.DownloadFile(ref)
+	content, err := inj.source.DownloadFile(ref)
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func computeDirectoryChecksum(contents map[string][]byte) []byte {
 // injectDirectory downloads all files in a directory (for skills) and writes them.
 func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) error {
 	// List all files in the remote directory
-	entries, err := inj.resolver.ListDirectory(ref)
+	entries, err := inj.source.ListDirectory(ref)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) e
 			Ref:  ref.Ref,
 		}
 
-		content, err := inj.resolver.DownloadFile(fileRef)
+		content, err := inj.source.DownloadFile(fileRef)
 		if err != nil {
 			return fmt.Errorf("downloading %s: %w", entry.Path, err)
 		}
@@ -173,7 +173,7 @@ func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) e
 	}
 
 	// Resolve commit SHA for the lock file
-	sha, err := inj.resolver.ResolveSHA(ref)
+	sha, err := inj.source.ResolveSHA(ref)
 	if err != nil {
 		// Non-fatal: we still wrote the files, just can't lock the SHA
 		sha = "unknown"

@@ -18,6 +18,9 @@ type Resolver struct {
 	client *http.Client
 }
 
+// Compile-time interface satisfaction check.
+var _ SourceRepository = (*Resolver)(nil)
+
 // New creates a Resolver with the given (authenticated) HTTP client.
 func New(client *http.Client) *Resolver {
 	return &Resolver{client: client}
