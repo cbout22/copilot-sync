@@ -54,7 +54,7 @@ func runSync() error {
 	}
 
 	res := resolver.New(client)
-	inj := injector.New(res, lock, ".")
+	inj := injector.New(res, lock, ".", &injector.OSFileWriter{})
 
 	fmt.Printf("🔄 Syncing %d asset(s)...\n\n", len(entries))
 

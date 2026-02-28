@@ -2,7 +2,6 @@ package injector
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -18,14 +17,16 @@ type Injector struct {
 	source  resolver.SourceRepository
 	lock    *manifest.LockFile
 	rootDir string // project root directory
+	fs      FileWriter
 }
 
 // New creates an Injector.
-func New(source resolver.SourceRepository, lock *manifest.LockFile, rootDir string) *Injector {
+func New(source resolver.SourceRepository, lock *manifest.LockFile, rootDir string, fs FileWriter) *Injector {
 	return &Injector{
 		source:  source,
 		lock:    lock,
 		rootDir: rootDir,
+		fs:      fs,
 	}
 }
 
@@ -71,7 +72,7 @@ func (inj *Injector) Inject(assetType config.AssetType, name, rawRef string) Inj
 // injectFile downloads a single file asset and writes it to disk.
 func (inj *Injector) injectFile(ref config.AssetRef, absTarget string, assetType config.AssetType, name, rawRef string) error {
 	// Ensure target directory exists
-	if err := os.MkdirAll(filepath.Dir(absTarget), 0755); err != nil {
+	if err := inj.fs.MkdirAll(filepath.Dir(absTarget)); err != nil {
 		return fmt.Errorf("creating directory: %w", err)
 	}
 
@@ -88,14 +89,14 @@ func (inj *Injector) injectFile(ref config.AssetRef, absTarget string, assetType
 	}
 
 	// Remove existing file if it exists to avoid stale content
-	if _, err := os.Stat(absTarget); err == nil {
-		if err := os.Remove(absTarget); err != nil {
+	if inj.fs.Exists(absTarget) {
+		if err := inj.fs.Remove(absTarget); err != nil {
 			return fmt.Errorf("removing existing file: %w", err)
 		}
 	}
 
 	// Write to disk
-	if err := os.WriteFile(absTarget, content, 0644); err != nil {
+	if err := inj.fs.Write(absTarget, content); err != nil {
 		return fmt.Errorf("writing file %s: %w", absTarget, err)
 	}
 
@@ -130,7 +131,7 @@ func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) e
 	}
 
 	// Ensure base target directory exists
-	if err := os.MkdirAll(absTargetDir, 0755); err != nil {
+	if err := inj.fs.MkdirAll(absTargetDir); err != nil {
 		return fmt.Errorf("creating skill directory: %w", err)
 	}
 
@@ -148,7 +149,7 @@ func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) e
 		targetFile := filepath.Join(absTargetDir, relPath)
 
 		// Ensure subdirectories exist
-		if err := os.MkdirAll(filepath.Dir(targetFile), 0755); err != nil {
+		if err := inj.fs.MkdirAll(filepath.Dir(targetFile)); err != nil {
 			return fmt.Errorf("creating directory for %s: %w", relPath, err)
 		}
 
@@ -165,7 +166,7 @@ func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) e
 			return fmt.Errorf("downloading %s: %w", entry.Path, err)
 		}
 
-		if err := os.WriteFile(targetFile, content, 0644); err != nil {
+		if err := inj.fs.Write(targetFile, content); err != nil {
 			return fmt.Errorf("writing %s: %w", targetFile, err)
 		}
 

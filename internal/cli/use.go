@@ -69,7 +69,7 @@ func runUse(typeName, name, rawRef string) error {
 
 	// Create resolver and injector
 	res := resolver.New(client)
-	inj := injector.New(res, lock, ".")
+	inj := injector.New(res, lock, ".", &injector.OSFileWriter{})
 
 	fmt.Printf("📦 Adding %s/%s from %s...\n", typeName, name, rawRef)
 

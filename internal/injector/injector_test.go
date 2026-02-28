@@ -3,7 +3,6 @@ package injector
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,9 +12,11 @@ import (
 	"github.com/cbout22/copilot-sync/internal/resolver"
 )
 
+// ---- fakeSource ----
+
 // fakeSource implements resolver.SourceRepository for testing.
 type fakeSource struct {
-	files  map[string][]byte           // AssetRef.Path → content
+	files  map[string][]byte // AssetRef.Path → content
 	dirs   map[string][]resolver.GitHubTreeEntry
 	sha    string
 	failOn string // path that should return an error
@@ -46,6 +47,59 @@ func (f *fakeSource) ResolveSHA(ref config.AssetRef) (string, error) {
 	}
 	return f.sha, nil
 }
+
+// ---- memFileWriter ----
+
+// memFileWriter implements FileWriter for testing — all operations in memory.
+type memFileWriter struct {
+	written map[string][]byte // path → data
+	dirs    map[string]bool   // created directories
+	removed []string          // paths removed
+	failOn  string            // path that should return a write error
+}
+
+func newMemFileWriter() *memFileWriter {
+	return &memFileWriter{
+		written: make(map[string][]byte),
+		dirs:    make(map[string]bool),
+	}
+}
+
+func (m *memFileWriter) Write(path string, data []byte) error {
+	if m.failOn != "" && path == m.failOn {
+		return fmt.Errorf("simulated write failure for %s", path)
+	}
+	m.written[path] = append([]byte{}, data...) // defensive copy
+	return nil
+}
+
+func (m *memFileWriter) MkdirAll(path string) error {
+	m.dirs[path] = true
+	return nil
+}
+
+func (m *memFileWriter) Remove(path string) error {
+	m.removed = append(m.removed, path)
+	delete(m.written, path)
+	return nil
+}
+
+func (m *memFileWriter) Exists(path string) bool {
+	_, ok := m.written[path]
+	return ok
+}
+
+// ---- helpers ----
+
+const rootDir = "/project"
+
+func newTestInjector(src *fakeSource, mfw *memFileWriter) (*Injector, *manifest.LockFile) {
+	lock := manifest.NewLockFile()
+	inj := New(src, lock, rootDir, mfw)
+	return inj, lock
+}
+
+// ---- computeDirectoryChecksum tests ----
 
 func TestComputeDirectoryChecksum_Deterministic(t *testing.T) {
 	t.Parallel()
@@ -117,15 +171,7 @@ func TestComputeDirectoryChecksum_StableAcrossMultipleCalls(t *testing.T) {
 	}
 }
 
-// --- Phase 1: Injector with fakeSource (real filesystem via t.TempDir) ---
-
-func newTestInjector(t *testing.T, src *fakeSource) (*Injector, string) {
-	t.Helper()
-	dir := t.TempDir()
-	lock := manifest.NewLockFile()
-	inj := New(src, lock, dir)
-	return inj, dir
-}
+// ---- Injector tests using fakeSource + memFileWriter ----
 
 func TestInject_SingleFile_Success(t *testing.T) {
 	t.Parallel()
@@ -134,20 +180,79 @@ func TestInject_SingleFile_Success(t *testing.T) {
 		files: map[string][]byte{"path/agent.md": []byte("agent content")},
 		sha:   "abc123",
 	}
-	inj, dir := newTestInjector(t, src)
+	mfw := newMemFileWriter()
+	inj, _ := newTestInjector(src, mfw)
 
 	result := inj.Inject(config.Agents, "test", rawRef)
 	if result.Err != nil {
 		t.Fatalf("Inject() error: %v", result.Err)
 	}
+}
 
-	targetPath := filepath.Join(dir, ".github", "agents", "test.agent.md")
-	data, err := os.ReadFile(targetPath)
-	if err != nil {
-		t.Fatalf("file not written: %v", err)
+func TestInject_SingleFile_WritesCorrectPath(t *testing.T) {
+	t.Parallel()
+	const rawRef = "org/repo/path/file.md@v1"
+	wantContent := []byte("clean code instructions")
+	src := &fakeSource{
+		files: map[string][]byte{"path/file.md": wantContent},
+		sha:   "sha1",
 	}
-	if string(data) != "agent content" {
-		t.Errorf("content = %q, want %q", string(data), "agent content")
+	mfw := newMemFileWriter()
+	inj, _ := newTestInjector(src, mfw)
+
+	result := inj.Inject(config.Instructions, "clean-code", rawRef)
+	if result.Err != nil {
+		t.Fatalf("Inject() error: %v", result.Err)
+	}
+
+	wantPath := filepath.Join(rootDir, ".github", "instructions", "clean-code.instructions.md")
+	data, ok := mfw.written[wantPath]
+	if !ok {
+		t.Fatalf("expected file written at %q, got keys: %v", wantPath, keysOf(mfw.written))
+	}
+	if !bytes.Equal(data, wantContent) {
+		t.Errorf("content = %q, want %q", data, wantContent)
+	}
+}
+
+func TestInject_SingleFile_OverwriteExisting(t *testing.T) {
+	t.Parallel()
+	const rawRef = "org/repo/path/agent.md@v1"
+	targetPath := filepath.Join(rootDir, ".github", "agents", "test.agent.md")
+
+	src := &fakeSource{
+		files: map[string][]byte{"path/agent.md": []byte("new content")},
+		sha:   "sha2",
+	}
+	mfw := newMemFileWriter()
+	// Pre-populate so Exists() returns true
+	mfw.written[targetPath] = []byte("old content")
+
+	inj, _ := newTestInjector(src, mfw)
+	result := inj.Inject(config.Agents, "test", rawRef)
+	if result.Err != nil {
+		t.Fatalf("Inject() error: %v", result.Err)
+	}
+
+	// Remove should have been called for the old file
+	if len(mfw.removed) == 0 {
+		t.Error("expected Remove to be called for existing file")
+	}
+	found := false
+	for _, p := range mfw.removed {
+		if p == targetPath {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected %q to be in removed list, got: %v", targetPath, mfw.removed)
+	}
+
+	// New content should be written
+	data := mfw.written[targetPath]
+	if string(data) != "new content" {
+		t.Errorf("content = %q, want %q", string(data), "new content")
 	}
 }
 
@@ -159,7 +264,8 @@ func TestInject_DownloadError(t *testing.T) {
 		sha:    "abc123",
 		failOn: "path/agent.md",
 	}
-	inj, _ := newTestInjector(t, src)
+	mfw := newMemFileWriter()
+	inj, _ := newTestInjector(src, mfw)
 
 	result := inj.Inject(config.Agents, "test", rawRef)
 	if result.Err == nil {
@@ -177,7 +283,8 @@ func TestInject_SHAResolutionFailure(t *testing.T) {
 		files: map[string][]byte{"path/agent.md": []byte("content")},
 		sha:   "", // empty triggers error
 	}
-	inj, _ := newTestInjector(t, src)
+	mfw := newMemFileWriter()
+	inj, _ := newTestInjector(src, mfw)
 
 	result := inj.Inject(config.Agents, "test", rawRef)
 	if result.Err == nil {
@@ -186,4 +293,105 @@ func TestInject_SHAResolutionFailure(t *testing.T) {
 	if !strings.Contains(result.Err.Error(), "resolving commit SHA") {
 		t.Errorf("error = %q, want it to contain 'resolving commit SHA'", result.Err.Error())
 	}
+}
+
+func TestInject_Directory_WritesAllFiles(t *testing.T) {
+	t.Parallel()
+	const rawRef = "org/repo/skills/k8s@main"
+	src := &fakeSource{
+		files: map[string][]byte{
+			"skills/k8s/deploy.md":   []byte("deploy"),
+			"skills/k8s/rollback.md": []byte("rollback"),
+			"skills/k8s/status.md":   []byte("status"),
+		},
+		dirs: map[string][]resolver.GitHubTreeEntry{
+			"skills/k8s": {
+				{Path: "skills/k8s/deploy.md", Type: "blob"},
+				{Path: "skills/k8s/rollback.md", Type: "blob"},
+				{Path: "skills/k8s/status.md", Type: "blob"},
+			},
+		},
+		sha: "sha3",
+	}
+	mfw := newMemFileWriter()
+	inj, _ := newTestInjector(src, mfw)
+
+	result := inj.Inject(config.Skills, "k8s", rawRef)
+	if result.Err != nil {
+		t.Fatalf("Inject() error: %v", result.Err)
+	}
+
+	wantFiles := []string{"deploy.md", "rollback.md", "status.md"}
+	for _, name := range wantFiles {
+		wantPath := filepath.Join(rootDir, ".github", "skills", "k8s", name)
+		if _, ok := mfw.written[wantPath]; !ok {
+			t.Errorf("expected file %q to be written, got keys: %v", wantPath, keysOf(mfw.written))
+		}
+	}
+}
+
+func TestInject_Directory_UpdatesLock(t *testing.T) {
+	t.Parallel()
+	const rawRef = "org/repo/skills/k8s@main"
+	src := &fakeSource{
+		files: map[string][]byte{
+			"skills/k8s/deploy.md": []byte("deploy"),
+		},
+		dirs: map[string][]resolver.GitHubTreeEntry{
+			"skills/k8s": {
+				{Path: "skills/k8s/deploy.md", Type: "blob"},
+			},
+		},
+		sha: "sha-lock",
+	}
+	mfw := newMemFileWriter()
+	inj, lock := newTestInjector(src, mfw)
+
+	result := inj.Inject(config.Skills, "k8s", rawRef)
+	if result.Err != nil {
+		t.Fatalf("Inject() error: %v", result.Err)
+	}
+
+	entry, ok := lock.Get("skills", "k8s")
+	if !ok {
+		t.Fatal("lock entry not set after skill inject")
+	}
+	if entry.ResolvedSHA != "sha-lock" {
+		t.Errorf("lock SHA = %q, want %q", entry.ResolvedSHA, "sha-lock")
+	}
+	if entry.Checksum == "" {
+		t.Error("lock Checksum is empty")
+	}
+}
+
+func TestInject_WriteError_PropagatesError(t *testing.T) {
+	t.Parallel()
+	const rawRef = "org/repo/path/agent.md@v1"
+	targetPath := filepath.Join(rootDir, ".github", "agents", "test.agent.md")
+
+	src := &fakeSource{
+		files: map[string][]byte{"path/agent.md": []byte("content")},
+		sha:   "sha4",
+	}
+	mfw := newMemFileWriter()
+	mfw.failOn = targetPath
+
+	inj, _ := newTestInjector(src, mfw)
+	result := inj.Inject(config.Agents, "test", rawRef)
+	if result.Err == nil {
+		t.Fatal("expected write error to propagate, got nil")
+	}
+	if !strings.Contains(result.Err.Error(), "simulated write failure") {
+		t.Errorf("error = %q, want it to contain 'simulated write failure'", result.Err.Error())
+	}
+}
+
+// ---- helpers ----
+
+func keysOf(m map[string][]byte) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
