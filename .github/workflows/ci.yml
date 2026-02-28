@@ -26,6 +26,9 @@ jobs:
       - name: Coverage summary
         run: go tool cover -func=coverage.out
 
+      - name: Vet
+        run: go vet ./...
+
       - uses: actions/upload-artifact@v4
         with:
           name: coverage
