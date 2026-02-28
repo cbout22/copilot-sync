@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/cbout22/copilot-sync/internal/config"
@@ -106,11 +107,16 @@ func (inj *Injector) injectFile(ref config.AssetRef, absTarget string, assetType
 
 // computeDirectoryChecksum creates a combined checksum for all files in a directory.
 func computeDirectoryChecksum(contents map[string][]byte) []byte {
-	// For directories, we concatenate all file contents in sorted path order
-	// to create a stable checksum
+	// Sort keys so the checksum is deterministic regardless of map iteration order.
+	keys := make([]string, 0, len(contents))
+	for k := range contents {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	var combined []byte
-	for _, content := range contents {
-		combined = append(combined, content...)
+	for _, k := range keys {
+		combined = append(combined, contents[k]...)
 	}
 	return combined
 }

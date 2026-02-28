@@ -91,7 +91,7 @@ func runCheck(strict bool) error {
 	if issues > 0 {
 		msg := fmt.Sprintf("Found %d issue(s). Run 'cops sync' to fix.", issues)
 		if strict {
-			return fmt.Errorf(msg)
+			return fmt.Errorf("%s", msg)
 		}
 		fmt.Printf("⚠️  %s\n", msg)
 	} else {
