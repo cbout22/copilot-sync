@@ -2,7 +2,6 @@ package injector
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -15,17 +14,19 @@ import (
 // Injector downloads assets from GitHub and writes them to the correct
 // .github/<type>/ directory.
 type Injector struct {
-	resolver *resolver.Resolver
-	lock     *manifest.LockFile
-	rootDir  string // project root directory
+	source  resolver.SourceRepository
+	lock    *manifest.LockFile
+	rootDir string // project root directory
+	fs      FileWriter
 }
 
 // New creates an Injector.
-func New(res *resolver.Resolver, lock *manifest.LockFile, rootDir string) *Injector {
+func New(source resolver.SourceRepository, lock *manifest.LockFile, rootDir string, fs FileWriter) *Injector {
 	return &Injector{
-		resolver: res,
-		lock:     lock,
-		rootDir:  rootDir,
+		source:  source,
+		lock:    lock,
+		rootDir: rootDir,
+		fs:      fs,
 	}
 }
 
@@ -71,31 +72,31 @@ func (inj *Injector) Inject(assetType config.AssetType, name, rawRef string) Inj
 // injectFile downloads a single file asset and writes it to disk.
 func (inj *Injector) injectFile(ref config.AssetRef, absTarget string, assetType config.AssetType, name, rawRef string) error {
 	// Ensure target directory exists
-	if err := os.MkdirAll(filepath.Dir(absTarget), 0755); err != nil {
+	if err := inj.fs.MkdirAll(filepath.Dir(absTarget)); err != nil {
 		return fmt.Errorf("creating directory: %w", err)
 	}
 
 	// Resolve commit SHA for the lock file
-	sha, err := inj.resolver.ResolveSHA(ref)
+	sha, err := inj.source.ResolveSHA(ref)
 	if err != nil {
 		return fmt.Errorf("resolving commit SHA: %w", err)
 	}
 
 	// Download the file
-	content, err := inj.resolver.DownloadFile(ref)
+	content, err := inj.source.DownloadFile(ref)
 	if err != nil {
 		return err
 	}
 
 	// Remove existing file if it exists to avoid stale content
-	if _, err := os.Stat(absTarget); err == nil {
-		if err := os.Remove(absTarget); err != nil {
+	if inj.fs.Exists(absTarget) {
+		if err := inj.fs.Remove(absTarget); err != nil {
 			return fmt.Errorf("removing existing file: %w", err)
 		}
 	}
 
 	// Write to disk
-	if err := os.WriteFile(absTarget, content, 0644); err != nil {
+	if err := inj.fs.Write(absTarget, content); err != nil {
 		return fmt.Errorf("writing file %s: %w", absTarget, err)
 	}
 
@@ -124,13 +125,13 @@ func computeDirectoryChecksum(contents map[string][]byte) []byte {
 // injectDirectory downloads all files in a directory (for skills) and writes them.
 func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) error {
 	// List all files in the remote directory
-	entries, err := inj.resolver.ListDirectory(ref)
+	entries, err := inj.source.ListDirectory(ref)
 	if err != nil {
 		return err
 	}
 
 	// Ensure base target directory exists
-	if err := os.MkdirAll(absTargetDir, 0755); err != nil {
+	if err := inj.fs.MkdirAll(absTargetDir); err != nil {
 		return fmt.Errorf("creating skill directory: %w", err)
 	}
 
@@ -148,7 +149,7 @@ func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) e
 		targetFile := filepath.Join(absTargetDir, relPath)
 
 		// Ensure subdirectories exist
-		if err := os.MkdirAll(filepath.Dir(targetFile), 0755); err != nil {
+		if err := inj.fs.MkdirAll(filepath.Dir(targetFile)); err != nil {
 			return fmt.Errorf("creating directory for %s: %w", relPath, err)
 		}
 
@@ -160,12 +161,12 @@ func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) e
 			Ref:  ref.Ref,
 		}
 
-		content, err := inj.resolver.DownloadFile(fileRef)
+		content, err := inj.source.DownloadFile(fileRef)
 		if err != nil {
 			return fmt.Errorf("downloading %s: %w", entry.Path, err)
 		}
 
-		if err := os.WriteFile(targetFile, content, 0644); err != nil {
+		if err := inj.fs.Write(targetFile, content); err != nil {
 			return fmt.Errorf("writing %s: %w", targetFile, err)
 		}
 
@@ -173,7 +174,7 @@ func (inj *Injector) injectDirectory(ref config.AssetRef, absTargetDir string) e
 	}
 
 	// Resolve commit SHA for the lock file
-	sha, err := inj.resolver.ResolveSHA(ref)
+	sha, err := inj.source.ResolveSHA(ref)
 	if err != nil {
 		// Non-fatal: we still wrote the files, just can't lock the SHA
 		sha = "unknown"

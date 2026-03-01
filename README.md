@@ -418,6 +418,15 @@ copilot.toml
 4. **Download** — Fetches file content (or recursively lists and downloads directory contents for skills)
 5. **Injection** — Writes files to `.github/<type>/<name><extension>`
 
+### Architecture
+
+`cops` uses a Hexagonal Lite architecture with two key interfaces:
+
+- **`SourceRepository`** — abstracts remote asset fetching (GitHub API). Defined in `resolver/source.go`.
+- **`FileWriter`** — abstracts filesystem operations during injection. Defined in `injector/filewriter.go`.
+
+This enables full unit testing of the sync and check logic without network calls or filesystem access.
+
 ---
 
 ## 🤝 Contributing

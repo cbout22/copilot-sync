@@ -1,6 +1,6 @@
 module github.com/cbout22/copilot-sync
 
-go 1.25.6
+go 1.25.1
 
 require (
 	github.com/BurntSushi/toml v1.6.0
