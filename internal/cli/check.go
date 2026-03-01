@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -35,8 +36,12 @@ missing or stale.`,
 }
 
 func runCheck(strict bool) error {
-	// Load the manifest
-	m, err := manifest.Load(manifest.DefaultManifestFile)
+	return runCheckWith(strict, manifest.DefaultManifestFile, manifest.DefaultLockFile, ".")
+}
+
+// runCheckWith is the testable core of the check command.
+func runCheckWith(strict bool, manifestPath, lockPath, rootDir string) error {
+	m, err := manifest.Load(manifestPath)
 	if err != nil {
 		return fmt.Errorf("loading manifest: %w", err)
 	}
@@ -47,8 +52,7 @@ func runCheck(strict bool) error {
 		return nil
 	}
 
-	// Load the lock file
-	lock, err := manifest.LoadLock(manifest.DefaultLockFile)
+	lock, err := manifest.LoadLock(lockPath)
 	if err != nil {
 		return fmt.Errorf("loading lock file: %w", err)
 	}
@@ -59,13 +63,11 @@ func runCheck(strict bool) error {
 
 	for _, entry := range entries {
 		assetType := config.AssetType(entry.Type)
-		targetPath := assetType.TargetPath(entry.Name)
+		targetPath := filepath.Join(rootDir, assetType.TargetPath(entry.Name))
 
-		// Check if file exists on disk
 		_, statErr := os.Stat(targetPath)
 		fileExists := statErr == nil
 
-		// Check lock file
 		lockEntry, locked := lock.Get(entry.Type, entry.Name)
 
 		switch {

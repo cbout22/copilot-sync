@@ -20,11 +20,25 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
       - name: Run tests with coverage
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Coverage summary
         run: go tool cover -func=coverage.out
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: ${COVERAGE}%"
+          if [ "$(echo "$COVERAGE < 45" | bc -l)" -eq 1 ]; then
+            echo "::error::Coverage ${COVERAGE}% is below 45% threshold"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
