@@ -13,6 +13,15 @@ import (
 const githubAPIBase = "https://api.github.com"
 const githubRawBase = "https://raw.githubusercontent.com"
 
+// ResolverAPI defines the interface for resolving and fetching assets from GitHub.
+// This enables testing with mock implementations.
+type ResolverAPI interface {
+	ResolveRef(ref config.AssetRef) (config.AssetRef, error)
+	DownloadFile(ref config.AssetRef) ([]byte, error)
+	ListDirectory(ref config.AssetRef) ([]GitHubTreeEntry, error)
+	ResolveSHA(ref config.AssetRef) (string, error)
+}
+
 // Resolver turns asset references into downloadable URLs and fetches content.
 type Resolver struct {
 	client *http.Client

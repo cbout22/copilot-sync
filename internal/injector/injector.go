@@ -15,13 +15,13 @@ import (
 // Injector downloads assets from GitHub and writes them to the correct
 // .github/<type>/ directory.
 type Injector struct {
-	resolver *resolver.Resolver
+	resolver resolver.ResolverAPI
 	lock     *manifest.LockFile
 	rootDir  string // project root directory
 }
 
 // New creates an Injector.
-func New(res *resolver.Resolver, lock *manifest.LockFile, rootDir string) *Injector {
+func New(res resolver.ResolverAPI, lock *manifest.LockFile, rootDir string) *Injector {
 	return &Injector{
 		resolver: res,
 		lock:     lock,
