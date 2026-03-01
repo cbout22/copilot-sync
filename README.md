@@ -39,13 +39,17 @@ Share not only `skills` but also `instructions`, `prompts`, and `agents` — the
 
 ## 📦 Installation
 
-### Homebrew (macOS)
+<details open>
+<summary><strong>🍎 macOS (Homebrew)</strong></summary>
 
 ```bash
 brew install --cask cbout22/tap/cops
 ```
 
-### APT / Debian
+</details>
+
+<details>
+<summary><strong>🐧 Linux (APT / Debian)</strong></summary>
 
 Download the `.deb` package from the [latest release](https://github.com/cbout22/copilot-sync/releases/latest) and install it:
 
@@ -54,20 +58,29 @@ curl -LO https://github.com/cbout22/copilot-sync/releases/latest/download/cops_<
 sudo dpkg -i cops_<version>_linux_amd64.deb
 ```
 
-### Scoop (Windows)
+</details>
+
+<details>
+<summary><strong>🪟 Windows (Scoop)</strong></summary>
 
 ```powershell
 scoop bucket add cops https://github.com/cbout22/scoop-bucket
 scoop install cops
 ```
 
-### From source (Go)
+</details>
+
+<details>
+<summary><strong>🔧 From source (Go)</strong></summary>
 
 ```bash
 go install github.com/cbout22/copilot-sync/cmd/cops@latest
 ```
 
-### Build locally
+</details>
+
+<details>
+<summary><strong>🏗️ Build locally</strong></summary>
 
 ```bash
 git clone https://github.com/cbout22/copilot-sync.git
@@ -76,6 +89,8 @@ go build -ldflags "-X github.com/cbout22/copilot-sync/internal/cli.version=$(git
 ```
 
 The resulting `cops` binary can be placed anywhere on your `$PATH`.
+
+</details>
 
 ### Verify
 
@@ -86,6 +101,9 @@ cops --version
 ---
 
 ## 🚀 Quick Start
+
+![Adding an agent Demo](./assets/demos/architect_agent_with_install.gif)
+
 
 **1. open any github repository**
 
