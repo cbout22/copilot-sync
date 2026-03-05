@@ -398,7 +398,7 @@ func TestLockFile_Save_MultipleEntries_KeysAreSorted(t *testing.T) {
 	if posAgent < 0 || posInst < 0 || posSkill < 0 {
 		t.Fatalf("keys not found in output:\n%s", got)
 	}
-	if !(posAgent < posInst && posInst < posSkill) {
+	if posAgent >= posInst || posInst >= posSkill {
 		t.Errorf("JSON keys not in sorted order: agents=%d, instructions=%d, skills=%d\noutput:\n%s",
 			posAgent, posInst, posSkill, got)
 	}

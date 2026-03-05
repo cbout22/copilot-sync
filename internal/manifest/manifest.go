@@ -68,11 +68,15 @@ func (m *Manifest) Save(path string) error {
 	if err != nil {
 		return fmt.Errorf("creating manifest file: %w", err)
 	}
-	defer f.Close()
 
 	encoder := toml.NewEncoder(f)
 	if err := encoder.Encode(m); err != nil {
+		_ = f.Close()
 		return fmt.Errorf("encoding manifest: %w", err)
+	}
+
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("closing manifest file: %w", err)
 	}
 
 	return nil

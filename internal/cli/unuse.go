@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -33,19 +34,24 @@ Example:
 }
 
 func runUnuse(typeName, name string) error {
+	return runUnuseWith(typeName, name, manifest.DefaultManifestFile, manifest.DefaultLockFile, ".")
+}
+
+// runUnuseWith is the testable core of the unuse command.
+func runUnuseWith(typeName, name, manifestPath, lockPath, rootDir string) error {
 	assetType := config.AssetType(typeName)
 	if !assetType.IsValid() {
 		return fmt.Errorf("invalid asset type: %s", typeName)
 	}
 
 	// Load the manifest
-	m, err := manifest.Load(manifest.DefaultManifestFile)
+	m, err := manifest.Load(manifestPath)
 	if err != nil {
 		return fmt.Errorf("loading manifest: %w", err)
 	}
 
 	// Load the lock file
-	lock, err := manifest.LoadLock(manifest.DefaultLockFile)
+	lock, err := manifest.LoadLock(lockPath)
 	if err != nil {
 		return fmt.Errorf("loading lock file: %w", err)
 	}
@@ -61,7 +67,7 @@ func runUnuse(typeName, name string) error {
 	}
 
 	// Delete the local file or directory from disk
-	targetPath := assetType.TargetPath(name)
+	targetPath := filepath.Join(rootDir, assetType.TargetPath(name))
 	if err := os.RemoveAll(targetPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("deleting %s: %w", targetPath, err)
 	}
@@ -70,16 +76,16 @@ func runUnuse(typeName, name string) error {
 	lock.Remove(typeName, name)
 
 	// Save the manifest
-	if err := m.Save(manifest.DefaultManifestFile); err != nil {
+	if err := m.Save(manifestPath); err != nil {
 		return fmt.Errorf("saving manifest: %w", err)
 	}
 
 	// Save the lock file
-	if err := lock.Save(manifest.DefaultLockFile); err != nil {
+	if err := lock.Save(lockPath); err != nil {
 		return fmt.Errorf("saving lock file: %w", err)
 	}
 
 	fmt.Printf("🗑️  Removed %s/%s from copilot.toml\n", typeName, name)
-	fmt.Printf("🧹 Deleted %s\n", targetPath)
+	fmt.Printf("🧹 Deleted %s\n", assetType.TargetPath(name))
 	return nil
 }

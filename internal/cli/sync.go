@@ -29,8 +29,17 @@ Each entry is fetched from GitHub and written to its corresponding
 }
 
 func runSync() error {
-	// Load the manifest
-	m, err := manifest.Load(manifest.DefaultManifestFile)
+	client, err := auth.NewHTTPClient()
+	if err != nil {
+		return err
+	}
+	res := resolver.New(client)
+	return runSyncWith(manifest.DefaultManifestFile, manifest.DefaultLockFile, res, ".")
+}
+
+// runSyncWith is the testable core of the sync command.
+func runSyncWith(manifestPath, lockPath string, res resolver.ResolverAPI, rootDir string) error {
+	m, err := manifest.Load(manifestPath)
 	if err != nil {
 		return fmt.Errorf("loading manifest: %w", err)
 	}
@@ -41,20 +50,12 @@ func runSync() error {
 		return nil
 	}
 
-	// Load the lock file
-	lock, err := manifest.LoadLock(manifest.DefaultLockFile)
+	lock, err := manifest.LoadLock(lockPath)
 	if err != nil {
 		return fmt.Errorf("loading lock file: %w", err)
 	}
 
-	// Set up authenticated HTTP client
-	client, err := auth.NewHTTPClient()
-	if err != nil {
-		return err
-	}
-
-	res := resolver.New(client)
-	inj := injector.New(res, lock, ".")
+	inj := injector.New(res, lock, rootDir)
 
 	fmt.Printf("🔄 Syncing %d asset(s)...\n\n", len(entries))
 
@@ -72,8 +73,7 @@ func runSync() error {
 		}
 	}
 
-	// Save the lock file
-	if err := lock.Save(manifest.DefaultLockFile); err != nil {
+	if err := lock.Save(lockPath); err != nil {
 		return fmt.Errorf("saving lock file: %w", err)
 	}
 
