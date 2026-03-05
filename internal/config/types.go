@@ -108,3 +108,16 @@ func (r AssetRef) Raw() string {
 func (r AssetRef) RepoFullName() string {
 	return fmt.Sprintf("%s/%s", r.Org, r.Repo)
 }
+
+// GitHubTreeEntry represents one item in the GitHub Trees API response.
+type GitHubTreeEntry struct {
+	Path string `json:"path"`
+	Type string `json:"type"` // "blob" or "tree"
+	SHA  string `json:"sha"`
+}
+
+// GitHubTreeResponse is the response from the GitHub Trees API.
+type GitHubTreeResponse struct {
+	SHA  string            `json:"sha"`
+	Tree []GitHubTreeEntry `json:"tree"`
+}

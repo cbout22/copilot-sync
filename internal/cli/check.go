@@ -2,13 +2,12 @@ package cli
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
-	"github.com/cbout22/copilot-sync/internal/config"
 	"github.com/cbout22/copilot-sync/internal/manifest"
+	"github.com/cbout22/copilot-sync/internal/port"
+	"github.com/cbout22/copilot-sync/internal/usecase"
 )
 
 // newCheckCmd creates the `check` command.
@@ -41,48 +40,30 @@ func runCheck(strict bool) error {
 
 // runCheckWith is the testable core of the check command.
 func runCheckWith(strict bool, manifestPath, lockPath, rootDir string) error {
-	m, err := manifest.Load(manifestPath)
+	uc := usecase.NewCheckAssets(port.OSFileSystem{})
+
+	result, err := uc.Execute(manifestPath, lockPath, rootDir)
 	if err != nil {
-		return fmt.Errorf("loading manifest: %w", err)
+		return err
 	}
 
-	entries := m.AllEntries()
-	if len(entries) == 0 {
+	if len(result.Entries) == 0 {
 		fmt.Println("📋 No entries in copilot.toml — nothing to check.")
 		return nil
 	}
 
-	lock, err := manifest.LoadLock(lockPath)
-	if err != nil {
-		return fmt.Errorf("loading lock file: %w", err)
-	}
+	fmt.Printf("🔍 Checking %d asset(s)...\n\n", len(result.Entries))
 
-	fmt.Printf("🔍 Checking %d asset(s)...\n\n", len(entries))
-
-	var issues int
-
-	for _, entry := range entries {
-		assetType := config.AssetType(entry.Type)
-		targetPath := filepath.Join(rootDir, assetType.TargetPath(entry.Name))
-
-		_, statErr := os.Stat(targetPath)
-		fileExists := statErr == nil
-
-		lockEntry, locked := lock.Get(entry.Type, entry.Name)
-
-		switch {
-		case !fileExists && !locked:
+	for _, entry := range result.Entries {
+		switch entry.Status {
+		case usecase.StatusMissingNeverSynced:
 			fmt.Printf("  ❌ %s/%s — missing (never synced)\n", entry.Type, entry.Name)
-			issues++
-		case !fileExists && locked:
-			fmt.Printf("  ❌ %s/%s — missing (was synced at %s)\n", entry.Type, entry.Name, lockEntry.SyncedAt)
-			issues++
-		case fileExists && !locked:
+		case usecase.StatusMissingSynced:
+			fmt.Printf("  ❌ %s/%s — missing (%s)\n", entry.Type, entry.Name, entry.Detail)
+		case usecase.StatusNotInLock:
 			fmt.Printf("  ⚠️  %s/%s — file exists but not in lock file (run 'cops sync')\n", entry.Type, entry.Name)
-			issues++
-		case fileExists && locked && lockEntry.Ref != entry.Ref:
-			fmt.Printf("  ⚠️  %s/%s — ref changed: lock=%s manifest=%s\n", entry.Type, entry.Name, lockEntry.Ref, entry.Ref)
-			issues++
+		case usecase.StatusRefChanged:
+			fmt.Printf("  ⚠️  %s/%s — ref changed: %s\n", entry.Type, entry.Name, entry.Detail)
 		default:
 			fmt.Printf("  ✅ %s/%s — ok\n", entry.Type, entry.Name)
 		}
@@ -90,6 +71,7 @@ func runCheckWith(strict bool, manifestPath, lockPath, rootDir string) error {
 
 	fmt.Println()
 
+	issues := result.Issues()
 	if issues > 0 {
 		msg := fmt.Sprintf("Found %d issue(s). Run 'cops sync' to fix.", issues)
 		if strict {

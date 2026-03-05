@@ -30,7 +30,7 @@ func (m *mockResolver) DownloadFile(ref config.AssetRef) ([]byte, error) {
 	return nil, os.ErrNotExist
 }
 
-func (m *mockResolver) ListDirectory(ref config.AssetRef) ([]resolver.GitHubTreeEntry, error) {
+func (m *mockResolver) ListDirectory(ref config.AssetRef) ([]config.GitHubTreeEntry, error) {
 	return nil, os.ErrNotExist
 }
 

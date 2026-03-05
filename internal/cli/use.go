@@ -6,10 +6,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cbout22/copilot-sync/internal/auth"
-	"github.com/cbout22/copilot-sync/internal/config"
-	"github.com/cbout22/copilot-sync/internal/injector"
 	"github.com/cbout22/copilot-sync/internal/manifest"
+	"github.com/cbout22/copilot-sync/internal/port"
 	"github.com/cbout22/copilot-sync/internal/resolver"
+	"github.com/cbout22/copilot-sync/internal/usecase"
 )
 
 // newUseCmd creates the `use` subcommand for a given asset type.
@@ -48,53 +48,14 @@ func runUse(typeName, name, rawRef string) error {
 }
 
 // runUseWith is the testable core of the use command.
-func runUseWith(typeName, name, rawRef, manifestPath, lockPath string, res resolver.ResolverAPI, rootDir string) error {
-	assetType := config.AssetType(typeName)
-	if !assetType.IsValid() {
-		return fmt.Errorf("invalid asset type: %s", typeName)
-	}
-
-	// Validate the ref format early
-	if _, err := config.ParseRef(rawRef); err != nil {
-		return err
-	}
-
-	// Load or create the manifest
-	m, err := manifest.Load(manifestPath)
-	if err != nil {
-		return fmt.Errorf("loading manifest: %w", err)
-	}
-
-	// Load the lock file
-	lock, err := manifest.LoadLock(lockPath)
-	if err != nil {
-		return fmt.Errorf("loading lock file: %w", err)
-	}
-
-	// Create injector
-	inj := injector.New(res, lock, rootDir)
+func runUseWith(typeName, name, rawRef, manifestPath, lockPath string, github port.GitHubResolver, rootDir string) error {
+	uc := usecase.NewUseAsset(port.OSFileSystem{}, github)
 
 	fmt.Printf("📦 Adding %s/%s from %s...\n", typeName, name, rawRef)
 
-	// Download and inject the asset
-	result := inj.Inject(assetType, name, rawRef)
-	if result.Err != nil {
-		return fmt.Errorf("failed to download: %w", result.Err)
-	}
-
-	// Update the manifest
-	if err := m.Set(typeName, name, rawRef); err != nil {
+	result, err := uc.Execute(typeName, name, rawRef, manifestPath, lockPath, rootDir)
+	if err != nil {
 		return err
-	}
-
-	// Save the manifest
-	if err := m.Save(manifestPath); err != nil {
-		return fmt.Errorf("saving manifest: %w", err)
-	}
-
-	// Save the lock file
-	if err := lock.Save(lockPath); err != nil {
-		return fmt.Errorf("saving lock file: %w", err)
 	}
 
 	fmt.Printf("✅ %s/%s synced to %s\n", typeName, name, result.TargetPath)

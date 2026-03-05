@@ -18,7 +18,7 @@ const githubRawBase = "https://raw.githubusercontent.com"
 type ResolverAPI interface {
 	ResolveRef(ref config.AssetRef) (config.AssetRef, error)
 	DownloadFile(ref config.AssetRef) ([]byte, error)
-	ListDirectory(ref config.AssetRef) ([]GitHubTreeEntry, error)
+	ListDirectory(ref config.AssetRef) ([]config.GitHubTreeEntry, error)
 	ResolveSHA(ref config.AssetRef) (string, error)
 }
 
@@ -130,22 +130,9 @@ func (r *Resolver) DownloadFile(ref config.AssetRef) ([]byte, error) {
 	return nil, lastErr
 }
 
-// GitHubTreeEntry represents one item in the GitHub Trees API response.
-type GitHubTreeEntry struct {
-	Path string `json:"path"`
-	Type string `json:"type"` // "blob" or "tree"
-	SHA  string `json:"sha"`
-}
-
-// GitHubTreeResponse is the response from the GitHub Trees API.
-type GitHubTreeResponse struct {
-	SHA  string            `json:"sha"`
-	Tree []GitHubTreeEntry `json:"tree"`
-}
-
 // ListDirectory fetches the recursive file listing of a directory in the repo.
 // This is used for skills which are downloaded as entire folders.
-func (r *Resolver) ListDirectory(ref config.AssetRef) ([]GitHubTreeEntry, error) {
+func (r *Resolver) ListDirectory(ref config.AssetRef) ([]config.GitHubTreeEntry, error) {
 	// Resolve @latest to the default branch
 	ref, err := r.ResolveRef(ref)
 	if err != nil {
@@ -167,13 +154,13 @@ func (r *Resolver) ListDirectory(ref config.AssetRef) ([]GitHubTreeEntry, error)
 		return nil, fmt.Errorf("listing tree for %s: HTTP %d — %s", ref.RepoFullName(), resp.StatusCode, string(body))
 	}
 
-	var treeResp GitHubTreeResponse
+	var treeResp config.GitHubTreeResponse
 	if err := json.NewDecoder(resp.Body).Decode(&treeResp); err != nil {
 		return nil, fmt.Errorf("decoding tree response: %w", err)
 	}
 
 	// Filter entries that are under the requested path and are blobs (files)
-	var entries []GitHubTreeEntry
+	var entries []config.GitHubTreeEntry
 	prefix := ref.Path + "/"
 	for _, e := range treeResp.Tree {
 		if e.Type == "blob" && (e.Path == ref.Path || (len(e.Path) > len(prefix) && e.Path[:len(prefix)] == prefix)) {

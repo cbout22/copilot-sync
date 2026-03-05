@@ -1,10 +1,13 @@
 package manifest
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/cbout22/copilot-sync/internal/port"
 )
 
 const DefaultManifestFile = "copilot.toml"
@@ -31,9 +34,14 @@ func New() *Manifest {
 // Load reads and parses a copilot.toml file from the given path.
 // If the file does not exist it returns an empty manifest (no error).
 func Load(path string) (*Manifest, error) {
+	return LoadWith(path, port.OSFileSystem{})
+}
+
+// LoadWith reads and parses a copilot.toml file using the given FileSystem.
+func LoadWith(path string, fs port.FileSystem) (*Manifest, error) {
 	m := New()
 
-	data, err := os.ReadFile(path)
+	data, err := fs.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return m, nil
@@ -64,21 +72,18 @@ func Load(path string) (*Manifest, error) {
 
 // Save writes the manifest back to the given path.
 func (m *Manifest) Save(path string) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("creating manifest file: %w", err)
-	}
+	return m.SaveWith(path, port.OSFileSystem{})
+}
 
-	encoder := toml.NewEncoder(f)
-	if err := encoder.Encode(m); err != nil {
-		_ = f.Close()
+// SaveWith writes the manifest back to the given path using the given FileSystem.
+func (m *Manifest) SaveWith(path string, fs port.FileSystem) error {
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(m); err != nil {
 		return fmt.Errorf("encoding manifest: %w", err)
 	}
-
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("closing manifest file: %w", err)
+	if err := fs.WriteFile(path, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("writing manifest file: %w", err)
 	}
-
 	return nil
 }
 

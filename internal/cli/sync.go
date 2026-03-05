@@ -6,10 +6,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cbout22/copilot-sync/internal/auth"
-	"github.com/cbout22/copilot-sync/internal/config"
-	"github.com/cbout22/copilot-sync/internal/injector"
 	"github.com/cbout22/copilot-sync/internal/manifest"
+	"github.com/cbout22/copilot-sync/internal/port"
 	"github.com/cbout22/copilot-sync/internal/resolver"
+	"github.com/cbout22/copilot-sync/internal/usecase"
 )
 
 // newSyncCmd creates the `sync` command.
@@ -38,48 +38,32 @@ func runSync() error {
 }
 
 // runSyncWith is the testable core of the sync command.
-func runSyncWith(manifestPath, lockPath string, res resolver.ResolverAPI, rootDir string) error {
-	m, err := manifest.Load(manifestPath)
+func runSyncWith(manifestPath, lockPath string, github port.GitHubResolver, rootDir string) error {
+	uc := usecase.NewSyncAssets(port.OSFileSystem{}, github)
+
+	result, err := uc.Execute(manifestPath, lockPath, rootDir)
 	if err != nil {
-		return fmt.Errorf("loading manifest: %w", err)
+		return err
 	}
 
-	entries := m.AllEntries()
-	if len(entries) == 0 {
+	total := len(result.Succeeded) + len(result.Failed)
+	if total == 0 {
 		fmt.Println("📋 No entries in copilot.toml — nothing to sync.")
 		return nil
 	}
 
-	lock, err := manifest.LoadLock(lockPath)
-	if err != nil {
-		return fmt.Errorf("loading lock file: %w", err)
+	fmt.Printf("🔄 Syncing %d asset(s)...\n\n", total)
+
+	for _, entry := range result.Succeeded {
+		fmt.Printf("  ✅ %s/%s → %s\n", entry.Type, entry.Name, entry.TargetPath)
 	}
-
-	inj := injector.New(res, lock, rootDir)
-
-	fmt.Printf("🔄 Syncing %d asset(s)...\n\n", len(entries))
-
-	var errors []error
-	for _, entry := range entries {
-		assetType := config.AssetType(entry.Type)
-		fmt.Printf("  📦 %s/%s ← %s\n", entry.Type, entry.Name, entry.Ref)
-
-		result := inj.Inject(assetType, entry.Name, entry.Ref)
-		if result.Err != nil {
-			fmt.Printf("  ❌ %s/%s: %s\n", entry.Type, entry.Name, result.Err)
-			errors = append(errors, fmt.Errorf("%s/%s: %w", entry.Type, entry.Name, result.Err))
-		} else {
-			fmt.Printf("  ✅ %s/%s → %s\n", entry.Type, entry.Name, result.TargetPath)
-		}
-	}
-
-	if err := lock.Save(lockPath); err != nil {
-		return fmt.Errorf("saving lock file: %w", err)
+	for _, entry := range result.Failed {
+		fmt.Printf("  ❌ %s/%s: %s\n", entry.Type, entry.Name, entry.Err)
 	}
 
 	fmt.Println()
-	if len(errors) > 0 {
-		return fmt.Errorf("sync completed with %d error(s)", len(errors))
+	if len(result.Failed) > 0 {
+		return fmt.Errorf("sync completed with %d error(s)", len(result.Failed))
 	}
 
 	fmt.Println("✅ All assets synced successfully.")

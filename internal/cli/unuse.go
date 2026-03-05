@@ -2,13 +2,13 @@ package cli
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/cbout22/copilot-sync/internal/config"
 	"github.com/cbout22/copilot-sync/internal/manifest"
+	"github.com/cbout22/copilot-sync/internal/port"
+	"github.com/cbout22/copilot-sync/internal/usecase"
 )
 
 // newUnuseCmd creates the `unuse` subcommand for a given asset type.
@@ -39,52 +39,13 @@ func runUnuse(typeName, name string) error {
 
 // runUnuseWith is the testable core of the unuse command.
 func runUnuseWith(typeName, name, manifestPath, lockPath, rootDir string) error {
-	assetType := config.AssetType(typeName)
-	if !assetType.IsValid() {
-		return fmt.Errorf("invalid asset type: %s", typeName)
-	}
+	uc := usecase.NewUnuseAsset(port.OSFileSystem{})
 
-	// Load the manifest
-	m, err := manifest.Load(manifestPath)
-	if err != nil {
-		return fmt.Errorf("loading manifest: %w", err)
-	}
-
-	// Load the lock file
-	lock, err := manifest.LoadLock(lockPath)
-	if err != nil {
-		return fmt.Errorf("loading lock file: %w", err)
-	}
-
-	// Remove the entry
-	removed, err := m.Remove(typeName, name)
-	if err != nil {
+	if err := uc.Execute(typeName, name, manifestPath, lockPath, rootDir); err != nil {
 		return err
 	}
 
-	if !removed {
-		return fmt.Errorf("%s/%s not found in copilot.toml", typeName, name)
-	}
-
-	// Delete the local file or directory from disk
-	targetPath := filepath.Join(rootDir, assetType.TargetPath(name))
-	if err := os.RemoveAll(targetPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("deleting %s: %w", targetPath, err)
-	}
-
-	// Remove from lock file
-	lock.Remove(typeName, name)
-
-	// Save the manifest
-	if err := m.Save(manifestPath); err != nil {
-		return fmt.Errorf("saving manifest: %w", err)
-	}
-
-	// Save the lock file
-	if err := lock.Save(lockPath); err != nil {
-		return fmt.Errorf("saving lock file: %w", err)
-	}
-
+	assetType := config.AssetType(typeName)
 	fmt.Printf("🗑️  Removed %s/%s from copilot.toml\n", typeName, name)
 	fmt.Printf("🧹 Deleted %s\n", assetType.TargetPath(name))
 	return nil

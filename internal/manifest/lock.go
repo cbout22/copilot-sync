@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/cbout22/copilot-sync/internal/port"
 )
 
 const DefaultLockFile = ".cops.lock"
@@ -42,9 +44,14 @@ func NewLockFile() *LockFile {
 // LoadLock reads and parses a .cops.lock file.
 // Returns an empty lock file if the file does not exist.
 func LoadLock(path string) (*LockFile, error) {
+	return LoadLockWith(path, port.OSFileSystem{})
+}
+
+// LoadLockWith reads and parses a .cops.lock file using the given FileSystem.
+func LoadLockWith(path string, fs port.FileSystem) (*LockFile, error) {
 	lf := NewLockFile()
 
-	data, err := os.ReadFile(path)
+	data, err := fs.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return lf, nil
@@ -65,12 +72,17 @@ func LoadLock(path string) (*LockFile, error) {
 
 // Save writes the lock file to the given path.
 func (lf *LockFile) Save(path string) error {
+	return lf.SaveWith(path, port.OSFileSystem{})
+}
+
+// SaveWith writes the lock file to the given path using the given FileSystem.
+func (lf *LockFile) SaveWith(path string, fs port.FileSystem) error {
 	data, err := json.MarshalIndent(lf, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encoding lock file: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := fs.WriteFile(path, data, 0644); err != nil {
 		return fmt.Errorf("writing lock file: %w", err)
 	}
 

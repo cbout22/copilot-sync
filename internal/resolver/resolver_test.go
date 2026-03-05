@@ -181,9 +181,9 @@ func TestDownloadFile_NotFound(t *testing.T) {
 func TestListDirectory_FiltersBlobs(t *testing.T) {
 	t.Parallel()
 
-	treeResp := GitHubTreeResponse{
+	treeResp := config.GitHubTreeResponse{
 		SHA: "abc123",
-		Tree: []GitHubTreeEntry{
+		Tree: []config.GitHubTreeEntry{
 			{Path: "skills/my-skill/main.go", Type: "blob", SHA: "aaa"},
 			{Path: "skills/my-skill/lib", Type: "tree", SHA: "bbb"},        // directory, should be filtered
 			{Path: "skills/my-skill/lib/util.go", Type: "blob", SHA: "ccc"},
@@ -235,9 +235,9 @@ func TestListDirectory_FiltersBlobs(t *testing.T) {
 func TestListDirectory_NoFiles(t *testing.T) {
 	t.Parallel()
 
-	treeResp := GitHubTreeResponse{
+	treeResp := config.GitHubTreeResponse{
 		SHA:  "abc123",
-		Tree: []GitHubTreeEntry{},
+		Tree: []config.GitHubTreeEntry{},
 	}
 
 	ts := newTestServer(t, map[string]func(w http.ResponseWriter, r *http.Request){
