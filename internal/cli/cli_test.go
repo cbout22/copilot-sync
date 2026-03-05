@@ -186,9 +186,13 @@ setup = "myorg/myrepo/instructions/setup@v1.0"
 
 	// Create the file on disk so unuse can delete it
 	targetDir := filepath.Join(dir, ".github", "instructions")
-	os.MkdirAll(targetDir, 0755)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 	targetPath := filepath.Join(targetDir, "setup.instructions.md")
-	os.WriteFile(targetPath, []byte("content"), 0644)
+	if err := os.WriteFile(targetPath, []byte("content"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := runUnuseWith("instructions", "setup", manifestPath, lockPath, dir)
 	if err != nil {
@@ -228,9 +232,13 @@ setup = "myorg/myrepo/instructions/setup@v1.0"
 
 	// Create the file on disk
 	targetDir := filepath.Join(dir, ".github", "instructions")
-	os.MkdirAll(targetDir, 0755)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 	targetPath := filepath.Join(targetDir, "setup.instructions.md")
-	os.WriteFile(targetPath, []byte("content"), 0644)
+	if err := os.WriteFile(targetPath, []byte("content"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create a matching lock file
 	lockContent := `{
@@ -247,7 +255,9 @@ setup = "myorg/myrepo/instructions/setup@v1.0"
     }
   }
 }`
-	os.WriteFile(lockPath, []byte(lockContent), 0644)
+	if err := os.WriteFile(lockPath, []byte(lockContent), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := runCheckWith(false, manifestPath, lockPath, dir)
 	if err != nil {
@@ -307,8 +317,12 @@ setup = "myorg/myrepo/instructions/setup@v2.0"
 
 	// File exists
 	targetDir := filepath.Join(dir, ".github", "instructions")
-	os.MkdirAll(targetDir, 0755)
-	os.WriteFile(filepath.Join(targetDir, "setup.instructions.md"), []byte("old"), 0644)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(targetDir, "setup.instructions.md"), []byte("old"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Lock says v1.0, manifest says v2.0 — should report ref changed
 	lockContent := `{
@@ -325,7 +339,9 @@ setup = "myorg/myrepo/instructions/setup@v2.0"
     }
   }
 }`
-	os.WriteFile(lockPath, []byte(lockContent), 0644)
+	if err := os.WriteFile(lockPath, []byte(lockContent), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Non-strict: should succeed (just warns)
 	err := runCheckWith(false, manifestPath, lockPath, dir)

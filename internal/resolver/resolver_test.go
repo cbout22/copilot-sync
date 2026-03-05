@@ -27,23 +27,12 @@ func newTestServer(t *testing.T, routes map[string]func(w http.ResponseWriter, r
 	}))
 }
 
-// newTestResolver creates a Resolver that points at the given test server
-// by overriding the base URLs.
-func newTestResolver(t *testing.T, ts *httptest.Server) *Resolver {
-	t.Helper()
-	// We override the package-level constants indirectly by using a custom
-	// resolver that rewrites URLs. Instead, we'll create a helper that
-	// patches the resolver's URLs.
-	res := New(ts.Client())
-	return res
-}
-
 func TestResolveRef_Latest(t *testing.T) {
 	t.Parallel()
 
 	ts := newTestServer(t, map[string]func(w http.ResponseWriter, r *http.Request){
 		"/repos/myorg/myrepo": func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(map[string]string{
+			_ = json.NewEncoder(w).Encode(map[string]string{
 				"default_branch": "main",
 			})
 		},
@@ -52,8 +41,6 @@ func TestResolveRef_Latest(t *testing.T) {
 
 	// Override the API base to point at our test server
 	origAPI := githubAPIBase
-	// We can't modify const, so we use a workaround — test the underlying method
-	res := New(ts.Client())
 
 	// Test ResolveDefaultBranchName by hitting the test server
 	ref := config.AssetRef{Org: "myorg", Repo: "myrepo", Path: "path/file", Ref: "latest"}
@@ -73,7 +60,7 @@ func TestResolveRef_Latest(t *testing.T) {
 			origRaw:    githubRawBase,
 		},
 	}
-	res = New(client)
+	res := New(client)
 
 	resolved, err := res.ResolveRef(ref)
 	if err != nil {
@@ -105,7 +92,7 @@ func TestDownloadFile_Success(t *testing.T) {
 	want := []byte("# My Instruction\nDo the thing.\n")
 	ts := newTestServer(t, map[string]func(w http.ResponseWriter, r *http.Request){
 		"/myorg/myrepo/v1.0/instructions/setup.md": func(w http.ResponseWriter, r *http.Request) {
-			w.Write(want)
+			_, _ = w.Write(want)
 		},
 	})
 	defer ts.Close()
@@ -141,7 +128,7 @@ func TestDownloadFile_FallbackMdExtension(t *testing.T) {
 			http.NotFound(w, r)
 		},
 		"/myorg/myrepo/v1.0/instructions/setup.md": func(w http.ResponseWriter, r *http.Request) {
-			w.Write(want)
+			_, _ = w.Write(want)
 		},
 	})
 	defer ts.Close()
@@ -206,7 +193,7 @@ func TestListDirectory_FiltersBlobs(t *testing.T) {
 
 	ts := newTestServer(t, map[string]func(w http.ResponseWriter, r *http.Request){
 		"/repos/myorg/myrepo/git/trees/v1.0?recursive=1": func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(treeResp)
+			_ = json.NewEncoder(w).Encode(treeResp)
 		},
 	})
 	defer ts.Close()
@@ -255,7 +242,7 @@ func TestListDirectory_NoFiles(t *testing.T) {
 
 	ts := newTestServer(t, map[string]func(w http.ResponseWriter, r *http.Request){
 		"/repos/myorg/myrepo/git/trees/v1.0?recursive=1": func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(treeResp)
+			_ = json.NewEncoder(w).Encode(treeResp)
 		},
 	})
 	defer ts.Close()
@@ -284,7 +271,7 @@ func TestResolveSHA_Success(t *testing.T) {
 	wantSHA := "abc123def456789"
 	ts := newTestServer(t, map[string]func(w http.ResponseWriter, r *http.Request){
 		"/repos/myorg/myrepo/commits/v1.0": func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(map[string]string{"sha": wantSHA})
+			_ = json.NewEncoder(w).Encode(map[string]string{"sha": wantSHA})
 		},
 	})
 	defer ts.Close()

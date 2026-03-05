@@ -5,6 +5,10 @@
 `copilot-sync` (`cops`) is a deterministic package manager for GitHub Copilot agent files.
 It manages instructions, agents, prompts, and skills from GitHub repositories through a `copilot.toml` manifest.
 
+## Dependencies
+
+The project use `mise`, to ensure usage of the right command prefix all your command by `mise exec -- `.
+
 ## Quick Reference
 
 ```bash

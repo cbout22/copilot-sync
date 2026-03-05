@@ -86,7 +86,7 @@ func TestNewHTTPClient_WithToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("client.Get(): %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func TestNewHTTPClient_NoToken(t *testing.T) {

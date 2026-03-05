@@ -38,7 +38,7 @@ func (r *Resolver) ResolveDefaultBranchName(ref config.AssetRef) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("fetching repo info for %s: %w", ref.RepoFullName(), err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -107,19 +107,19 @@ func (r *Resolver) DownloadFile(ref config.AssetRef) ([]byte, error) {
 		}
 
 		if resp.StatusCode == http.StatusNotFound {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			lastErr = fmt.Errorf("fetching %s: HTTP 404", url)
 			continue
 		}
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return nil, fmt.Errorf("fetching %s: HTTP %d — %s", url, resp.StatusCode, string(body))
 		}
 
 		data, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			return nil, fmt.Errorf("reading response from %s: %w", url, err)
 		}
@@ -160,7 +160,7 @@ func (r *Resolver) ListDirectory(ref config.AssetRef) ([]GitHubTreeEntry, error)
 	if err != nil {
 		return nil, fmt.Errorf("listing tree for %s: %w", ref.RepoFullName(), err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -207,7 +207,7 @@ func (r *Resolver) ResolveSHA(ref config.AssetRef) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolving commit SHA for %s@%s: %w", ref.RepoFullName(), ref.Ref, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
