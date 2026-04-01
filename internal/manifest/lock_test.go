@@ -25,24 +25,24 @@ func TestNewLockFile(t *testing.T) {
 	}
 }
 
-// --- checksum ---
+// --- Checksum ---
 
 func TestChecksum_KnownValue(t *testing.T) {
 	t.Parallel()
 	// echo -n "hello" | sha256sum
-	got := checksum([]byte("hello"))
+	got := Checksum([]byte("hello"))
 	want := "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
 	if got != want {
-		t.Errorf("checksum(\"hello\") = %q, want %q", got, want)
+		t.Errorf("Checksum(\"hello\") = %q, want %q", got, want)
 	}
 }
 
 func TestChecksum_Deterministic(t *testing.T) {
 	t.Parallel()
 	data := []byte("some content here")
-	c1 := checksum(data)
+	c1 := Checksum(data)
 	for i := 0; i < 100; i++ {
-		if got := checksum(data); got != c1 {
+		if got := Checksum(data); got != c1 {
 			t.Fatalf("iteration %d: checksum differs: %q vs %q", i, got, c1)
 		}
 	}
@@ -50,10 +50,10 @@ func TestChecksum_Deterministic(t *testing.T) {
 
 func TestChecksum_EmptyInput(t *testing.T) {
 	t.Parallel()
-	got := checksum([]byte{})
+	got := Checksum([]byte{})
 	want := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 	if got != want {
-		t.Errorf("checksum(empty) = %q, want %q", got, want)
+		t.Errorf("Checksum(empty) = %q, want %q", got, want)
 	}
 }
 
@@ -102,7 +102,7 @@ func TestLockFile_Set_FieldsPopulated(t *testing.T) {
 		t.Errorf("TargetPath = %q", entry.TargetPath)
 	}
 
-	expectedChecksum := checksum(content)
+	expectedChecksum := Checksum(content)
 	if entry.Checksum != expectedChecksum {
 		t.Errorf("Checksum = %q, want %q", entry.Checksum, expectedChecksum)
 	}
