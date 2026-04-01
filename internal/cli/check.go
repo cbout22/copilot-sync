@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -84,7 +85,17 @@ func runCheckWith(strict bool, manifestPath, lockPath, rootDir string) error {
 			fmt.Printf("  ⚠️  %s/%s — ref changed: lock=%s manifest=%s\n", entry.Type, entry.Name, lockEntry.Ref, entry.Ref)
 			issues++
 		default:
-			fmt.Printf("  ✅ %s/%s — ok\n", entry.Type, entry.Name)
+			// fileExists && locked && refs match — verify content integrity
+			cs, err := localChecksum(targetPath, assetType.IsDirectory())
+			if err != nil {
+				fmt.Printf("  ❌ %s/%s — error reading local file: %v\n", entry.Type, entry.Name, err)
+				issues++
+			} else if cs != lockEntry.Checksum {
+				fmt.Printf("  ❌ %s/%s — content modified (checksum mismatch)\n", entry.Type, entry.Name)
+				issues++
+			} else {
+				fmt.Printf("  ✅ %s/%s — ok\n", entry.Type, entry.Name)
+			}
 		}
 	}
 
@@ -101,4 +112,49 @@ func runCheckWith(strict bool, manifestPath, lockPath, rootDir string) error {
 	}
 
 	return nil
+}
+
+// localChecksum computes the SHA-256 checksum of a local file or directory,
+// using the same algorithm as the injector for comparison against lock file entries.
+func localChecksum(path string, isDir bool) (string, error) {
+	if !isDir {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return manifest.Checksum(data), nil
+	}
+
+	// For directories: collect files in sorted order and concatenate content,
+	// matching the deterministic algorithm used by the injector.
+	type filePair struct {
+		rel  string
+		data []byte
+	}
+	var pairs []filePair
+	err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		rel, _ := filepath.Rel(path, p)
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		pairs = append(pairs, filePair{rel, data})
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	sort.Slice(pairs, func(i, j int) bool { return pairs[i].rel < pairs[j].rel })
+
+	var combined []byte
+	for _, p := range pairs {
+		combined = append(combined, p.data...)
+	}
+	return manifest.Checksum(combined), nil
 }

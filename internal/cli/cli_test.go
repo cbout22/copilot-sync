@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/cbout22/copilot-sync/internal/config"
+	"github.com/cbout22/copilot-sync/internal/manifest"
 	"github.com/cbout22/copilot-sync/internal/resolver"
 )
 
@@ -225,10 +226,10 @@ func TestUnuseCmd_NotFound(t *testing.T) {
 func TestCheckCmd_AllInSync(t *testing.T) {
 	t.Parallel()
 
-	manifest := `[instructions]
+	toml := `[instructions]
 setup = "myorg/myrepo/instructions/setup@v1.0"
 `
-	dir, manifestPath, lockPath := setupTestDir(t, manifest)
+	dir, manifestPath, lockPath := setupTestDir(t, toml)
 
 	// Create the file on disk
 	targetDir := filepath.Join(dir, ".github", "instructions")
@@ -240,22 +241,11 @@ setup = "myorg/myrepo/instructions/setup@v1.0"
 		t.Fatal(err)
 	}
 
-	// Create a matching lock file
-	lockContent := `{
-  "version": 1,
-  "entries": {
-    "instructions/setup": {
-      "type": "instructions",
-      "name": "setup",
-      "ref": "myorg/myrepo/instructions/setup@v1.0",
-      "resolved_sha": "abc123",
-      "target_path": ".github/instructions/setup.instructions.md",
-      "checksum": "abc",
-      "synced_at": "2025-01-01T00:00:00Z"
-    }
-  }
-}`
-	if err := os.WriteFile(lockPath, []byte(lockContent), 0644); err != nil {
+	// Create a matching lock file with the correct checksum for "content"
+	lf := manifest.NewLockFile()
+	lf.Set("instructions", "setup", "myorg/myrepo/instructions/setup@v1.0", "abc123",
+		".github/instructions/setup.instructions.md", []byte("content"))
+	if err := lf.Save(lockPath); err != nil {
 		t.Fatal(err)
 	}
 
@@ -353,6 +343,49 @@ setup = "myorg/myrepo/instructions/setup@v2.0"
 	err = runCheckWith(true, manifestPath, lockPath, dir)
 	if err == nil {
 		t.Fatal("runCheckWith(ref changed, strict): expected error, got nil")
+	}
+}
+
+func TestCheckCmd_ChecksumMismatch(t *testing.T) {
+	t.Parallel()
+
+	manifestContent := `[instructions]
+setup = "myorg/myrepo/instructions/setup@v1.0"
+`
+	dir, manifestPath, lockPath := setupTestDir(t, manifestContent)
+
+	// Write a file with different content than what the lock records
+	targetDir := filepath.Join(dir, ".github", "instructions")
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(targetDir, "setup.instructions.md"), []byte("original"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Lock was synced with "original", but now file contains "tampered"
+	lf := manifest.NewLockFile()
+	lf.Set("instructions", "setup", "myorg/myrepo/instructions/setup@v1.0", "abc123",
+		".github/instructions/setup.instructions.md", []byte("original"))
+	if err := lf.Save(lockPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Tamper with the file after locking
+	if err := os.WriteFile(filepath.Join(targetDir, "setup.instructions.md"), []byte("tampered"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Non-strict: should succeed but report the mismatch
+	err := runCheckWith(false, manifestPath, lockPath, dir)
+	if err != nil {
+		t.Fatalf("runCheckWith(mismatch, non-strict): unexpected error: %v", err)
+	}
+
+	// Strict: should fail
+	err = runCheckWith(true, manifestPath, lockPath, dir)
+	if err == nil {
+		t.Fatal("runCheckWith(mismatch, strict): expected error, got nil")
 	}
 }
 

@@ -91,7 +91,7 @@ func (lf *LockFile) Set(assetType, name, ref, resolvedSHA, targetPath string, co
 		Ref:         ref,
 		ResolvedSHA: resolvedSHA,
 		TargetPath:  targetPath,
-		Checksum:    checksum(content),
+		Checksum:    Checksum(content),
 		SyncedAt:    time.Now().UTC().Format(time.RFC3339),
 	}
 }
@@ -109,8 +109,8 @@ func (lf *LockFile) Remove(assetType, name string) {
 	delete(lf.Entries, key)
 }
 
-// checksum returns the hex-encoded SHA-256 of the given data.
-func checksum(data []byte) string {
+// Checksum returns the hex-encoded SHA-256 of the given data.
+func Checksum(data []byte) string {
 	h := sha256.Sum256(data)
 	return fmt.Sprintf("%x", h)
 }
