@@ -65,7 +65,7 @@ func completeRepos(client *http.Client, toComplete string) ([]string, cobra.Shel
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		Items []struct {
@@ -105,7 +105,7 @@ func completePaths(client *http.Client, org, repo, pathPrefix, fullToComplete st
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		Tree []struct {
@@ -186,7 +186,7 @@ func completeRefs(client *http.Client, repoPart, refPart string) ([]string, cobr
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return completions, cobra.ShellCompDirectiveNoFileComp
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result []struct {
 		Ref string `json:"ref"`

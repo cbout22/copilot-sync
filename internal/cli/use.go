@@ -39,6 +39,16 @@ Example:
 }
 
 func runUse(typeName, name, rawRef string) error {
+	client, err := auth.NewHTTPClient()
+	if err != nil {
+		return err
+	}
+	res := resolver.New(client)
+	return runUseWith(typeName, name, rawRef, manifest.DefaultManifestFile, manifest.DefaultLockFile, res, ".")
+}
+
+// runUseWith is the testable core of the use command.
+func runUseWith(typeName, name, rawRef, manifestPath, lockPath string, res resolver.ResolverAPI, rootDir string) error {
 	assetType := config.AssetType(typeName)
 	if !assetType.IsValid() {
 		return fmt.Errorf("invalid asset type: %s", typeName)
@@ -50,13 +60,13 @@ func runUse(typeName, name, rawRef string) error {
 	}
 
 	// Load or create the manifest
-	m, err := manifest.Load(manifest.DefaultManifestFile)
+	m, err := manifest.Load(manifestPath)
 	if err != nil {
 		return fmt.Errorf("loading manifest: %w", err)
 	}
 
 	// Load the lock file
-	lock, err := manifest.LoadLock(manifest.DefaultLockFile)
+	lock, err := manifest.LoadLock(lockPath)
 	if err != nil {
 		return fmt.Errorf("loading lock file: %w", err)
 	}
@@ -85,12 +95,12 @@ func runUse(typeName, name, rawRef string) error {
 	}
 
 	// Save the manifest
-	if err := m.Save(manifest.DefaultManifestFile); err != nil {
+	if err := m.Save(manifestPath); err != nil {
 		return fmt.Errorf("saving manifest: %w", err)
 	}
 
 	// Save the lock file
-	if err := lock.Save(manifest.DefaultLockFile); err != nil {
+	if err := lock.Save(lockPath); err != nil {
 		return fmt.Errorf("saving lock file: %w", err)
 	}
 

@@ -296,7 +296,7 @@ func TestSave_TOML_KeysSorted(t *testing.T) {
 	posA := bytes.Index([]byte(got), []byte("a-inst"))
 	posB := bytes.Index([]byte(got), []byte("b-inst"))
 	posC := bytes.Index([]byte(got), []byte("c-inst"))
-	if !(posA < posB && posB < posC) {
+	if posA >= posB || posB >= posC {
 		t.Errorf("TOML keys not sorted: a=%d b=%d c=%d\noutput:\n%s", posA, posB, posC, got)
 	}
 }
