@@ -407,8 +407,8 @@ copilot.toml
 
 `cops` uses a Hexagonal Lite architecture with two key interfaces:
 
-- **`SourceRepository`** — abstracts remote asset fetching (GitHub API). Defined in `resolver/source.go`.
-- **`FileWriter`** — abstracts filesystem operations during injection. Defined in `injector/filewriter.go`.
+- **`SourceRepository`** — abstracts remote asset fetching (GitHub API). Defined in `internal/resolver/source.go`.
+- **`FileWriter`** — abstracts filesystem operations during injection. Defined in `internal/injector/filewriter.go`.
 
 This enables full unit testing of the sync and check logic without network calls or filesystem access.
 
